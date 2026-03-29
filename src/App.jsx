@@ -244,16 +244,17 @@ export default function BirdieGolfWebsite() {
   const [profPhone, setProfPhone] = useState("");
   const [profEmail, setProfEmail] = useState("");
   const [editModal, setEditModal] = useState(null);
-  const [cards, setCards] = useState([{ id: 1, brand: "Visa", last4: "4242", exp: "08/27" }, { id: 2, brand: "Mastercard", last4: "8910", exp: "12/26" }]);
+  const [cards, setCards] = useState([]);
   const [addCard, setAddCard] = useState(false);
   const [newCard, setNewCard] = useState({ num: "", exp: "", cvc: "" });
 
   /* Membership */
-  const [tier, setTier] = useState("player");
-  const [bayCredits, setBayCredits] = useState(3);
+  const [tier, setTier] = useState("none");
+  const [bayCredits, setBayCredits] = useState(0);
   const [memTab, setMemTab] = useState("current");
   const [memModal, setMemModal] = useState(null);
-  const renewDate = "April 15, 2026", memberSince = "January 10, 2026";
+  const [renewDate, setRenewDate] = useState(null);
+  const [memberSince, setMemberSince] = useState(null);
 
   /* Bay booking */
   const [bkStep, setBkStep] = useState(0);
@@ -275,33 +276,19 @@ export default function BirdieGolfWebsite() {
   const [selPkg, setSelPkg] = useState(null);
 
   /* Lesson credits */
-  const [totL, setTotL] = useState(2);
-  const [maxL, setMaxL] = useState(3);
-  const [creditCoachId, setCreditCoachId] = useState("TMiznwW3c_E9-NTW");
-  const [creditPkg, setCreditPkg] = useState("3-Hour Package");
-  const [creditExp, setCreditExp] = useState("May 11, 2026");
-  const [creditPurchaseDate, setCreditPurchaseDate] = useState("March 5, 2026");
-  const [lesHistory, setLesHistory] = useState([
-    { type: "purchase", desc: "3-Hour Package · Santiago Espinoza", date: "Mar 5, 2026", amt: "$300.00" },
-    { type: "lesson", desc: "Lesson with Santiago Espinoza", date: "Mar 12, 2026", amt: "1 credit" },
-  ]);
-  const [creditUsage, setCreditUsage] = useState([{ date: "Mar 12, 2026", desc: "Lesson with Santiago Espinoza" }]);
+  const [totL, setTotL] = useState(0);
+  const [maxL, setMaxL] = useState(0);
+  const [creditCoachId, setCreditCoachId] = useState(null);
+  const [creditPkg, setCreditPkg] = useState(null);
+  const [creditExp, setCreditExp] = useState(null);
+  const [creditPurchaseDate, setCreditPurchaseDate] = useState(null);
+  const [lesHistory, setLesHistory] = useState([]);
+  const [creditUsage, setCreditUsage] = useState([]);
 
   /* Upcoming & Transactions */
   const [upcomingBk, setUpcomingBk] = useState([]);
-  const [transactions] = useState([
-    { desc: "Bay Booking · Bay 3", date: "Mar 15, 2026", method: "Visa ····4242", amt: "$40.00" },
-    { desc: "Lesson · Santiago Espinoza", date: "Mar 12, 2026", method: "Credit", amt: "$0.00" },
-    { desc: "3-Hour Package · Santiago Espinoza", date: "Mar 5, 2026", method: "Visa ····4242", amt: "$300.00" },
-    { desc: "Bay Booking · Bay 1", date: "Mar 3, 2026", method: "Mastercard ····8910", amt: "$50.00" },
-    { desc: "Player Membership · Monthly", date: "Mar 1, 2026", method: "Visa ····4242", amt: "$200.00" },
-    { desc: "Bay Booking · Bay 5", date: "Feb 27, 2026", method: "Visa ····4242", amt: "$0.00" },
-  ]);
-  const [memHistory] = useState([
-    { desc: "Player · Monthly Renewal", date: "Mar 1, 2026", amt: "$200.00", status: "Paid" },
-    { desc: "Player · Monthly Renewal", date: "Feb 1, 2026", amt: "$200.00", status: "Paid" },
-    { desc: "Player · Joined", date: "Jan 10, 2026", amt: "$200.00", status: "Paid" },
-  ]);
+  const [transactions] = useState([]);
+  const [memHistory] = useState([]);
 
   const days14 = gen14();
   const creditCoach = COACHES.find(c => c.id === creditCoachId);
@@ -442,7 +429,7 @@ export default function BirdieGolfWebsite() {
         <button style={{ ...S.b1, marginTop: 16, opacity: onbF && onbL && onbE ? 1 : 0.4 }} onClick={async () => {
           if (!onbF || !onbL || !onbE) return;
           // 1. Create customer in Supabase
-          const result = await sb.post("customers", { phone: ph, first_name: onbF, last_name: onbL, email: onbE, tier: "player", bay_credits_remaining: 3, bay_credits_total: 8, member_since: "2026-01-10", renewal_date: "2026-04-15" });
+          const result = await sb.post("customers", { phone: ph, first_name: onbF, last_name: onbL, email: onbE, tier: "none", bay_credits_remaining: 0, bay_credits_total: 0 });
           const sbId = result?.[0]?.id;
           if (sbId) setCustomerId(sbId);
           // 2. Create customer in Square
