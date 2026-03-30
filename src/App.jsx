@@ -82,11 +82,14 @@ const TIERS = {
   champion: { n: "Champion", c: "#124A2B", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited bay rental (max 2hr/booking)", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
 };
 
+/* Default: coaches available all operating hours. Admin updates override via Supabase. */
+const ALL_WD_SLOTS = ["7:00 AM","7:30 AM","8:00 AM","8:30 AM","9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","12:00 PM","12:30 PM","1:00 PM","1:30 PM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM","4:30 PM","5:00 PM","5:30 PM","6:00 PM","6:30 PM","7:00 PM","7:30 PM","8:00 PM","8:30 PM","9:00 PM","9:30 PM"];
+const ALL_WE_SLOTS = ["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","12:00 PM","12:30 PM","1:00 PM","1:30 PM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM","4:30 PM","5:00 PM","5:30 PM","6:00 PM","6:30 PM","7:00 PM","7:30 PM","8:00 PM","8:30 PM"];
+const FULL_AV = { Mon: ALL_WD_SLOTS, Tue: ALL_WD_SLOTS, Wed: ALL_WD_SLOTS, Thu: ALL_WD_SLOTS, Fri: ALL_WD_SLOTS, Sat: ALL_WE_SLOTS, Sun: ALL_WE_SLOTS };
+
 const COACHES = [
-  { id: "TMiznwW3c_E9-NTW", n: "Santiago Espinoza", ini: "SE", r: 4.9,
-    av: { Mon:["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","5:00 PM","5:30 PM","6:00 PM","6:30 PM"], Tue:["9:00 AM","9:30 AM","10:00 AM","10:30 AM","1:00 PM","1:30 PM","2:00 PM","2:30 PM","4:00 PM","4:30 PM","5:00 PM","5:30 PM"], Wed:["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","6:00 PM","6:30 PM"], Thu:["10:00 AM","10:30 AM","11:00 AM","11:30 AM","1:00 PM","1:30 PM","2:00 PM","2:30 PM","5:00 PM","5:30 PM","6:00 PM","6:30 PM"], Fri:["9:00 AM","9:30 AM","10:00 AM","10:30 AM","1:00 PM","1:30 PM","3:00 PM","3:30 PM","4:00 PM","4:30 PM"], Sat:["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","1:00 PM","1:30 PM","2:00 PM","2:30 PM"], Sun:[] } },
-  { id: "TMa5N23NEiU89Spy", n: "Nicolas Cavero", ini: "NC", r: 4.8,
-    av: { Mon:["10:00 AM","10:30 AM","11:00 AM","11:30 AM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","5:00 PM","5:30 PM"], Tue:[], Wed:["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM","4:30 PM"], Thu:["10:00 AM","10:30 AM","11:00 AM","11:30 AM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","5:00 PM","5:30 PM"], Fri:["12:00 PM","12:30 PM","1:00 PM","1:30 PM","2:00 PM","2:30 PM","5:00 PM","5:30 PM","6:00 PM","6:30 PM"], Sat:["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","1:00 PM","1:30 PM","2:00 PM","2:30 PM"], Sun:[] } },
+  { id: "TMiznwW3c_E9-NTW", n: "Santiago Espinoza", ini: "SE", av: { ...FULL_AV } },
+  { id: "TMa5N23NEiU89Spy", n: "Nicolas Cavero", ini: "NC", av: { ...FULL_AV } },
 ];
 
 /* ─── Time / Date Helpers ─── */
@@ -120,13 +123,8 @@ function isBayBlocked(bayId, dt, slot, bayBlocks) {
 
 const MOCK_BK = {};
 function getBk(dt, slot) {
-  const k = dateKey(dt) + "|" + slot;
-  if (!MOCK_BK[k]) {
-    const h = toH(slot), d = dt.getDay();
-    const seed = (dt.getDate() * 7 + h * 3 + d * 11) % 17;
-    MOCK_BK[k] = seed < 3 ? [1, 3] : seed < 5 ? [2, 4] : seed < 7 ? [5] : seed < 9 ? [1, 2, 5] : [];
-  }
-  return MOCK_BK[k];
+  // All bays start available — real bookings come from Supabase
+  return [];
 }
 
 function getAvailBays(dt, startSlot, durSlots, bayBlocks) {
@@ -287,7 +285,7 @@ export default function BirdieGolfWebsite() {
 
   /* Upcoming & Transactions */
   const [upcomingBk, setUpcomingBk] = useState([]);
-  const [transactions] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [memHistory] = useState([]);
 
   const days14 = gen14();
@@ -304,6 +302,21 @@ export default function BirdieGolfWebsite() {
       const blocks = await sb.get("bay_blocks", "select=*");
       if (blocks?.length) setBayBlocks(blocks);
     })();
+  }, []);
+
+  /* Load user-specific data (transactions, bookings) */
+  const loadUserData = useCallback(async (cid) => {
+    if (!cid) return;
+    const txns = await sb.get("transactions", `select=*&customer_id=eq.${cid}&order=created_at.desc`);
+    if (txns?.length) setTransactions(txns.map(t => ({
+      desc: t.description, date: new Date(t.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      method: t.payment_label || "Card", amt: "$" + Number(t.amount).toFixed(2),
+    })));
+    const bks = await sb.get("bookings", `select=*&customer_id=eq.${cid}&status=eq.confirmed&order=date.asc`);
+    if (bks?.length) setUpcomingBk(bks.map(b => ({
+      type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
+      sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
+    })));
   }, []);
 
   /* ─── Save booking to Supabase ─── */
@@ -327,13 +340,15 @@ export default function BirdieGolfWebsite() {
       amount: bookingData.total, credits_used: bookingData.credits, discount: bookingData.disc,
       square_payment_id: sqPaymentId,
     });
-    if (result?.[0]) {
-      await sb.post("transactions", {
-        customer_id: customerId, description: "Bay Booking · Bay " + bookingData.bay,
-        date: dateKey(new Date()), amount: bookingData.total, payment_label: "Visa ····4242",
-        square_payment_id: sqPaymentId, booking_id: result[0].id,
-      });
-    }
+    // Save transaction to Supabase (fire and forget)
+    sb.post("transactions", {
+      customer_id: customerId, description: "Bay Booking · Bay " + bookingData.bay,
+      date: dateKey(new Date()), amount: bookingData.total, payment_label: "Visa ····4242",
+      square_payment_id: sqPaymentId,
+    });
+    // Always update local display
+    const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    setTransactions(p => [{ desc: "Bay Booking · Bay " + bookingData.bay, date: today, method: "Visa ····4242", amt: "$" + bookingData.total.toFixed(2) }, ...p]);
     return result;
   };
 
@@ -356,6 +371,14 @@ export default function BirdieGolfWebsite() {
       status: "confirmed", amount: bookingData.total, credits_used: bookingData.credit ? 1 : 0,
       square_payment_id: sqPaymentId,
     });
+    // Save transaction to Supabase (fire and forget)
+    sb.post("transactions", {
+      customer_id: customerId, description: "Lesson · " + bookingData.coachName,
+      date: dateKey(new Date()), amount: bookingData.total, payment_label: bookingData.credit ? "Credit" : "Visa ····4242",
+    });
+    // Always update local display
+    const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    setTransactions(p => [{ desc: "Lesson · " + bookingData.coachName, date: today, method: bookingData.credit ? "Credit" : "Visa ····4242", amt: "$" + bookingData.total.toFixed(2) }, ...p]);
     return result;
   };
 
@@ -384,7 +407,7 @@ export default function BirdieGolfWebsite() {
         <label style={LS.label}>PHONE NUMBER</label>
         <div style={LS.phRow}>
           <span style={LS.phPre}>+1</span>
-          <input style={LS.phIn} type="tel" placeholder="(305) 555-0000" value={ph} onChange={e => setPh(e.target.value.replace(/[^0-9]/g, ""))} maxLength={10} />
+          <input style={LS.phIn} type="tel" placeholder="(305) 555-0000" value={ph.length > 6 ? `(${ph.slice(0,3)}) ${ph.slice(3,6)}-${ph.slice(6)}` : ph.length > 3 ? `(${ph.slice(0,3)}) ${ph.slice(3)}` : ph.length > 0 ? `(${ph}` : ""} onChange={e => { const digits = e.target.value.replace(/[^0-9]/g, ""); setPh(digits.slice(0, 10)); }} />
         </div>
         <button style={{ ...S.b1, marginTop: 16, opacity: ph.length >= 10 ? 1 : 0.4 }} onClick={() => { if (ph.length >= 10) setAuthStep("otp"); }}>Continue</button>
         <div style={LS.demo}>Demo: any 10+ digits</div>
@@ -440,7 +463,7 @@ export default function BirdieGolfWebsite() {
             // Link Square ID back to Supabase
             if (sbId) await sb.patch("customers", `id=eq.${sbId}`, { square_customer_id: sqId });
           }
-          setLogged(true); fire("Welcome, " + onbF + "! 🎉");
+          setLogged(true); if (sbId) loadUserData(sbId); fire("Welcome, " + onbF + "! 🎉");
         }}>Create Account</button>
       </>
     );
@@ -547,34 +570,44 @@ export default function BirdieGolfWebsite() {
         </div>
       ))}
 
-      {tierData && tier !== "starter" && <>
-        <h3 style={S.sh}>Credits</h3>
-        <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          {tier === "champion" ? (
-            <div style={S.creditCard}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontSize: 13, fontWeight: 600 }}>Bay Credits</span><span style={{ fontSize: 12, fontWeight: 700, color: TIERS.champion.c }}>Unlimited</span></div>
-              <div style={S.bar}><div style={{ ...S.barF, width: "100%", background: TIERS.champion.c }} /></div>
-            </div>
-          ) : (
-            <div style={S.creditCard}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontSize: 13, fontWeight: 600 }}>Bay Credits</span><span style={{ fontSize: 12, fontWeight: 700, color: TIERS.player.c }}>{bayCredits} of 8 remaining</span></div>
-              <div style={S.bar}><div style={{ ...S.barF, width: (bayCredits / 8 * 100) + "%", background: TIERS.player.c }} /></div>
+      {/* Active Membership & Lesson Package cards — side by side */}
+      {(tierData || totL > 0) && <>
+        <h3 style={S.sh}>My Plans</h3>
+        <div style={{ display: (tierData && totL > 0 && isDesktop) ? "grid" : (tierData && totL > 0) ? "flex" : "block", gridTemplateColumns: "1fr 1fr", gap: 12, flexDirection: "column" }}>
+          {tierData && tier !== "none" && (
+            <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, flex: 1 }}>
+              <span style={S.mcBadge}>{tierData.badge}</span>
+              <p style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginTop: 6 }}>{tierData.n} Plan</p>
+              <p style={{ fontSize: 12, color: "#ffffffbb" }}>${tierData.price}/mo</p>
+              {tier === "player" && <div style={{ marginTop: 10 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}><span style={{ fontSize: 10, color: "#ffffffbb" }}>Bay Hours</span><span style={{ fontSize: 10, color: "#fff", fontWeight: 600 }}>{bayCredits}/{TIERS.player.hrs}</span></div><div style={{ ...S.bar, background: "#ffffff33" }}><div style={{ ...S.barF, width: (bayCredits / 8 * 100) + "%", background: "#fff" }} /></div></div>}
+              {tier === "champion" && <p style={{ fontSize: 11, color: "#ffffffcc", marginTop: 8 }}>Unlimited Bay Access</p>}
             </div>
           )}
-          {totL > 0 && (
-            <div style={{ ...S.creditCard, marginTop: isDesktop ? 0 : 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontSize: 13, fontWeight: 600 }}>Lesson Credits</span><span style={{ fontSize: 12, fontWeight: 700, color: "#5B6DCD" }}>{totL} of {maxL} remaining</span></div>
-              <div style={S.bar}><div style={{ ...S.barF, width: (totL / maxL * 100) + "%", background: "#5B6DCD" }} /></div>
-              <p style={{ fontSize: 11, color: "#888", marginTop: 6 }}>{creditPkg} · {creditCoach?.n} · Exp {creditExp}</p>
+          {totL > 0 && creditCoach && (
+            <div style={{ background: "#5B6DCD12", border: "1px solid #5B6DCD33", borderRadius: 16, padding: 16, flex: 1, marginTop: (tierData && tier !== "none" && !isDesktop) ? 12 : 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontSize: 13, fontWeight: 600, color: "#5B6DCD" }}>{creditPkg}</span><span style={{ background: "#5B6DCD", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totL}/{maxL}</span></div>
+              <p style={{ fontSize: 12, color: "#888" }}>{creditCoach.n}</p>
+              <div style={{ ...S.bar, marginTop: 6 }}><div style={{ ...S.barF, width: (totL / maxL * 100) + "%", background: "#5B6DCD" }} /></div>
+              <p style={{ fontSize: 10, color: "#aaa", marginTop: 6 }}>Expires {creditExp}</p>
             </div>
           )}
         </div>
       </>}
 
+      {/* Credits (bay) for members without the "My Plans" section covering it */}
+      {tierData && tier !== "none" && tier !== "starter" && !((tierData || totL > 0)) ? null : null}
+
       <h3 style={{ ...S.sh, marginTop: 24 }}>About Us</h3>
-      <div style={S.aboutGrid}>
+      <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10, marginBottom: 18 }}>
         <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>🕐 Hours</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Mon–Fri 7am–10pm</p><p style={{ fontSize: 12, color: "#555" }}>Sat–Sun 9am–9pm</p></div>
         <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>📍 Location</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>45 NE 26th St., Unit C, Miami, FL 33137</p></div>
+        <div style={{ ...S.aboutCard, gridColumn: isDesktop ? "auto" : "1 / -1" }}>
+          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>💰 Bay Rates</p>
+          <p style={{ fontSize: 12, color: "#2D8A5E", lineHeight: 1.8 }}>Non-Peak ${cfg.op}/hr</p>
+          <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 7am–5pm · Sat–Sun 9am–9pm</p>
+          <p style={{ fontSize: 12, color: "#E8890C", lineHeight: 1.8, marginTop: 4 }}>Peak ${cfg.pk}/hr</p>
+          <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 5pm–10pm</p>
+        </div>
       </div>
 
       <h3 style={S.sh}>Contact</h3>
@@ -631,7 +664,7 @@ export default function BirdieGolfWebsite() {
     return <>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>Book a Bay</h2>
       {tier === "champion" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#124A2B" }}>Unlimited · Max 2hrs/booking</span></div>}
-      {tier === "player" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#2D8A5E" }}>{bayCredits} hrs of credits remaining this cycle</span></div>}
+      {tier === "player" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#2D8A5E" }}>{bayCredits > 0 ? bayCredits + " hrs of credits remaining this cycle" : "No bay credits remaining this cycle"}</span></div>}
 
       <h4 style={S.stepH}>Select Date</h4>
       <div style={S.dateScroll}>
@@ -701,15 +734,6 @@ export default function BirdieGolfWebsite() {
         </div>;
       })()}
       {bkDate && bkDur && bkTime && bkBay && <button style={{ ...S.b1, marginTop: 14 }} onClick={() => setBkStep(1)}>Continue to Confirm</button>}
-
-      <div style={S.rateInfo}>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "#888", marginBottom: 6 }}>RATES</p>
-        <div style={{ display: "flex", gap: 12 }}>
-          <span style={{ fontSize: 11, color: "#2D8A5E" }}>Off-Peak ${cfg.op}/hr</span>
-          <span style={{ fontSize: 11, color: "#E8890C" }}>Peak ${cfg.pk}/hr</span>
-          <span style={{ fontSize: 11, color: "#5B6DCD" }}>Weekend ${cfg.wk}/hr</span>
-        </div>
-      </div>
     </>;
   };
 
@@ -757,7 +781,7 @@ export default function BirdieGolfWebsite() {
     const CoachCard = ({ c, sel, locked, onClick }) => (
       <button style={{ ...S.coachCard, ...(sel ? { borderColor: "#5B6DCD", background: "#5B6DCD0A" } : {}), ...(locked ? { opacity: 0.4, cursor: "not-allowed" } : {}) }} onClick={onClick} disabled={locked}>
         <div style={S.coachAv}>{c.ini}</div>
-        <div><p style={{ fontSize: 13, fontWeight: 600 }}>{c.n}</p><p style={{ fontSize: 11, color: "#E8890C" }}>★ {c.r}</p>
+        <div><p style={{ fontSize: 13, fontWeight: 600 }}>{c.n}</p>
           {locked && <p style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>Credits with {creditCoach?.n.split(" ")[0]}</p>}</div>
       </button>
     );
@@ -774,7 +798,7 @@ export default function BirdieGolfWebsite() {
     return <>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 14 }}>Lessons</h2>
       <div style={S.tabs}>
-        {["book", "credits", "history"].map(t => <button key={t} style={{ ...S.tabBtn, ...(lesTab === t ? S.tabSel : {}) }} onClick={() => { setLesTab(t); setSelPkg(null); setPkgCoach(null); }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
+        {["book", "credits"].map(t => <button key={t} style={{ ...S.tabBtn, ...(lesTab === t ? S.tabSel : {}) }} onClick={() => { setLesTab(t); setSelPkg(null); setPkgCoach(null); }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
       </div>
 
       {lesTab === "book" && <>
@@ -828,9 +852,9 @@ export default function BirdieGolfWebsite() {
         </> : <>
           {!selPkg ? <>
             <h4 style={S.stepH}>Select a Package</h4><p style={{ fontSize: 12, color: "#888", marginBottom: 14 }}>Purchase a lesson package to save on hourly rates.</p>
-            {(() => { const isMem = tier && tier !== "none"; return [{ name: "3-Hour Package", credits: 3, price: isMem ? 300 : 360, savings: isMem ? 60 : 90 }, { name: "5-Hour Package", credits: 5, price: isMem ? 400 : 500, savings: isMem ? 200 : 250 }].map(p =>
+            {(() => { const isMem = tier && tier !== "none"; return [{ name: "3-Hour Package", credits: 3, price: isMem ? 300 : 360 }, { name: "5-Hour Package", credits: 5, price: isMem ? 400 : 500 }].map(p =>
               <button key={p.name} style={{ ...S.pkgCard, cursor: "pointer", textAlign: "left", width: "100%" }} onClick={() => setSelPkg(p)}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}><div><p style={{ fontSize: 15, fontWeight: 700 }}>{p.name}</p><p style={{ fontSize: 12, color: "#888" }}>{p.credits} lesson credits</p></div><span style={{ background: "#2D8A5E14", color: "#2D8A5E", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 8 }}>Save ${p.savings}</span></div>
+                <div><p style={{ fontSize: 15, fontWeight: 700 }}>{p.name}</p><p style={{ fontSize: 12, color: "#888" }}>{p.credits} lesson credits</p></div>
                 <p style={{ fontSize: 18, fontWeight: 700, marginTop: 10 }}>${p.price}</p></button>); })()}
           </> : !pkgCoach ? <>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><button style={S.bk} onClick={() => { setSelPkg(null); setPkgCoach(null); }}>{X.chevL(18)}</button><div><p style={{ fontSize: 15, fontWeight: 700 }}>{selPkg.name}</p><p style={{ fontSize: 12, color: "#888" }}>{selPkg.credits} credits · ${selPkg.price}</p></div></div>
@@ -842,21 +866,14 @@ export default function BirdieGolfWebsite() {
               const today = new Date(), expDate = new Date(today); expDate.setMonth(expDate.getMonth() + 3);
               const fmtShort = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
               await sb.post("lesson_packages", { customer_id: customerId, name: selPkg.name, total_credits: selPkg.credits, remaining_credits: selPkg.credits, coach_id: pkgCoach, coach_name: coach?.n, price: selPkg.price, expiry_date: dateKey(expDate) });
+              await sb.post("transactions", { customer_id: customerId, description: selPkg.name + " · " + coach?.n, date: dateKey(today), amount: selPkg.price, payment_label: "Visa ····4242" });
               setTotL(selPkg.credits); setMaxL(selPkg.credits); setCreditCoachId(pkgCoach); setCreditPkg(selPkg.name); setCreditPurchaseDate(fmtShort(today)); setCreditExp(fmtShort(expDate)); setCreditUsage([]);
-              setLesHistory(p => [...p, { type: "purchase", desc: selPkg.name + " · " + coach?.n, date: fmtShort(today), amt: "$" + selPkg.price + ".00" }]);
+              setTransactions(p => [{ desc: selPkg.name + " · " + coach?.n, date: fmtShort(today), method: "Visa ····4242", amt: "$" + selPkg.price + ".00" }, ...p]);
               fire("Package purchased! ✓"); setSelPkg(null); setPkgCoach(null);
             }}>Buy</button></div>; })()}
         </>}
       </>}
 
-      {lesTab === "history" && <>
-        {lesHistory.length === 0 ? <div style={S.emptyCard}><p style={{ fontSize: 13, color: "#aaa" }}>No lesson history</p></div> :
-          [...lesHistory].reverse().map((h, i) => <div key={i} style={S.histRow}>
-            <div style={{ ...S.upIc, color: h.type === "purchase" ? "#E8890C" : "#5B6DCD", background: h.type === "purchase" ? "#E8890C14" : "#5B6DCD14", width: 36, height: 36, borderRadius: 10 }}>
-              {h.type === "purchase" ? X.card(16) : X.coach(16)}</div>
-            <div style={{ flex: 1 }}><p style={{ fontSize: 13, fontWeight: 500 }}>{h.desc}</p><p style={{ fontSize: 11, color: "#888" }}>{h.date}</p></div>
-            <span style={{ fontSize: 12, fontWeight: 600, color: h.amt === "1 credit" ? "#5B6DCD" : "#1a1a1a" }}>{h.amt}</span></div>)}
-      </>}
     </>;
   };
 
@@ -865,9 +882,17 @@ export default function BirdieGolfWebsite() {
     const td = TIERS[tier];
     return <>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 14 }}>Membership</h2>
-      <div style={S.tabs}>{["current", "history", "memberships"].map(t => <button key={t} style={{ ...S.tabBtn, ...(memTab === t ? S.tabSel : {}) }} onClick={() => setMemTab(t)}>{t === "memberships" ? "Browse" : t.charAt(0).toUpperCase() + t.slice(1)}</button>)}</div>
+      <div style={S.tabs}>{["current", "memberships"].map(t => <button key={t} style={{ ...S.tabBtn, ...(memTab === t ? S.tabSel : {}) }} onClick={() => setMemTab(t)}>{t === "memberships" ? "Browse" : "Current"}</button>)}</div>
 
-      {memTab === "current" && td && <>
+      {memTab === "current" && (!td || tier === "none") && (
+        <div style={S.emptyCard}>
+          <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No active membership</p>
+          <p style={{ fontSize: 12, color: "#888", marginBottom: 14 }}>Browse our membership plans to unlock bay credits, discounts, and more.</p>
+          <button style={{ ...S.b1, maxWidth: 200, margin: "0 auto" }} onClick={() => setMemTab("memberships")}>Browse Plans</button>
+        </div>
+      )}
+
+      {memTab === "current" && td && tier !== "none" && <>
         <div style={{ ...S.mc, background: `linear-gradient(135deg, ${td.c}, ${td.c}cc)` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
             <div><span style={S.mcBadge}>{td.badge}</span><p style={{ fontSize: 18, fontWeight: 700, color: "#fff", marginTop: 8 }}>{td.n} Plan</p><p style={{ fontSize: 14, color: "#ffffffbb" }}>${td.price}/mo</p></div>
@@ -889,7 +914,6 @@ export default function BirdieGolfWebsite() {
           <button style={{ ...S.b1, background: "#E03928" }} onClick={() => setMemModal("cancel")}>Cancel Membership</button></div>
       </>}
 
-      {memTab === "history" && memHistory.map((h, i) => <div key={i} style={S.histRow}><div style={{ flex: 1 }}><p style={{ fontSize: 13, fontWeight: 600 }}>{h.desc}</p><p style={{ fontSize: 11, color: "#888" }}>{h.date}</p></div><div style={{ textAlign: "right" }}><p style={{ fontSize: 13, fontWeight: 600 }}>{h.amt}</p><p style={{ fontSize: 10, color: "#2D8A5E", fontWeight: 600 }}>{h.status}</p></div></div>)}
 
       {memTab === "memberships" && <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
         {Object.entries(TIERS).map(([k, t]) => <div key={k} style={{ ...S.pkgCard, borderLeft: `3px solid ${t.c}` }}>
@@ -912,7 +936,13 @@ export default function BirdieGolfWebsite() {
         <div style={{ display: "flex", gap: 10 }}><button style={S.b2} onClick={() => setMemModal(null)}>Cancel</button><button style={{ ...S.b1, flex: 2, background: TIERS[memModal.to]?.c }} onClick={async () => {
           await sb.patch("customers", `id=eq.${customerId}`, { tier: memModal.to });
           await sb.post("membership_history", { customer_id: customerId, action: Object.keys(TIERS).indexOf(memModal.to) > Object.keys(TIERS).indexOf(tier) ? "upgrade" : "downgrade", tier: memModal.to, amount: TIERS[memModal.to]?.price });
-          setTier(memModal.to); fire("Plan updated! ✓"); setMemModal(null); setMemTab("current");
+          const newTier = memModal.to; const newPrice = TIERS[newTier]?.price || 0;
+          setTier(newTier); setBayCredits(TIERS[newTier]?.hrs === -1 ? 999 : TIERS[newTier]?.hrs || 0);
+          const todayStr = new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+          setMemberSince(todayStr); const rd=new Date(); rd.setMonth(rd.getMonth()+1); setRenewDate(rd.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}));
+          await sb.post("transactions", { customer_id: customerId, description: TIERS[newTier]?.n + " Membership", date: dateKey(new Date()), amount: newPrice, payment_label: "Visa ····4242" });
+          setTransactions(p => [{ desc: TIERS[newTier]?.n + " Membership", date: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}), method: "Visa ····4242", amt: "$" + newPrice + ".00" }, ...p]);
+          fire("Plan updated! ✓"); setMemModal(null); setMemTab("current");
         }}>Confirm Switch</button></div>
       </div></div>}
     </>;
@@ -943,7 +973,8 @@ export default function BirdieGolfWebsite() {
     </div>
 
     <div style={S.sec}><h4 style={S.secL}>Transaction History</h4>
-      {transactions.map((t, i) => <div key={i} style={S.fRow}><div style={{ flex: 1 }}><p style={{ fontSize: 13, fontWeight: 500 }}>{t.desc}</p><p style={{ fontSize: 11, color: "#888" }}>{t.date} · {t.method}</p></div><span style={{ fontSize: 13, fontWeight: 600, color: t.amt === "$0.00" ? "#2D8A5E" : "#1a1a1a" }}>{t.amt}</span></div>)}
+      {transactions.length === 0 ? <p style={{ fontSize: 13, color: "#aaa", textAlign: "center", padding: "12px 0" }}>No transactions yet</p> :
+      transactions.map((t, i) => <div key={i} style={S.fRow}><div style={{ flex: 1 }}><p style={{ fontSize: 13, fontWeight: 500 }}>{t.desc}</p><p style={{ fontSize: 11, color: "#888" }}>{t.date} · {t.method}</p></div><span style={{ fontSize: 13, fontWeight: 600, color: t.amt === "$0.00" ? "#2D8A5E" : "#1a1a1a" }}>{t.amt}</span></div>)}
       <p style={{ fontSize: 10, color: "#ccc", textAlign: "center", marginTop: 14 }}>Powered by Square</p></div>
 
     <button style={{ ...S.b1, background: "#E03928", marginTop: 8 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOnbF(""); setOnbL(""); setOnbE(""); }}>{X.out(16)} Sign Out</button>
