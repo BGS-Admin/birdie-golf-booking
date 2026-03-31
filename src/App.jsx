@@ -1026,7 +1026,7 @@ export default function BirdieGolfWebsite() {
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><span style={{ background: t.c, color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontFamily: mono, letterSpacing: 1 }}>{t.badge}</span><span style={{ fontSize: 16, fontWeight: 700 }}>{t.n}</span></div>
           <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>${t.price}<span style={{ fontSize: 13, color: "#888", fontWeight: 400 }}>/mo</span></p>
           {t.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}><span style={{ color: t.c, flexShrink: 0 }}>{X.chk(14)}</span><span style={{ fontSize: 12 }}>{p}</span></div>)}
-          <div style={{ marginTop: 14 }}>{k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span> : {hasCard ? <button style={{ ...S.b1, background: t.c }} onClick={() => setMemModal({ type: "switch", to: k })}>{Object.keys(TIERS).indexOf(k) > Object.keys(TIERS).indexOf(tier) ? "Upgrade" : "Switch"}</button> : <button style={{ ...S.b1, background: "#ccc" }} onClick={() => setTab("profile")}>Add Card First</button>}}</div>
+          <div style={{ marginTop: 14 }}>{k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span> : hasCard ? <button style={{ ...S.b1, background: t.c }} onClick={() => setMemModal({ type: "switch", to: k })}>{Object.keys(TIERS).indexOf(k) > Object.keys(TIERS).indexOf(tier) ? "Upgrade" : "Switch"}</button> : <button style={{ ...S.b1, background: "#ccc" }} onClick={() => setTab("profile")}>Add Card First</button>}</div>
         </div>)}
       </div>}
 
