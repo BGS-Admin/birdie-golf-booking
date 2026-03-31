@@ -121,27 +121,34 @@ function isBayBlocked(bayId, dt, slot, bayBlocks) {
   });
 }
 
-const MOCK_BK = {};
-function getBk(dt, slot) {
-  // All bays start available — real bookings come from Supabase
-  return [];
+// Returns bays occupied at a given date/slot from real bookings
+function getBk(dt, slot, realBookings) {
+  const dk = dateKey(dt);
+  const occupied = [];
+  (realBookings || []).forEach(b => {
+    if (b.status === "cancelled" || b.date !== dk || !b.bay) return;
+    const bsi = ALL_TIMES.indexOf(b.start_time);
+    const si = ALL_TIMES.indexOf(slot);
+    if (bsi >= 0 && si >= bsi && si < bsi + (b.duration_slots || 2)) occupied.push(b.bay);
+  });
+  return occupied;
 }
 
-function getAvailBays(dt, startSlot, durSlots, bayBlocks) {
+function getAvailBays(dt, startSlot, durSlots, bayBlocks, realBookings) {
   const hrs = getHours(dt); const si = hrs.indexOf(startSlot);
   if (si === -1) return [];
   const needed = hrs.slice(si, si + durSlots);
   if (needed.length < durSlots) return [];
-  return [1,2,3,4,5].map(bay => ({ bay, ok: needed.every(s => !getBk(dt, s).includes(bay) && !isBayBlocked(bay, dt, s, bayBlocks)) }));
+  return [1,2,3,4,5].map(bay => ({ bay, ok: needed.every(s => !getBk(dt, s, realBookings).includes(bay) && !isBayBlocked(bay, dt, s, bayBlocks)) }));
 }
 
-function getAllTimes(dt, durSlots, bayBlocks) {
+function getAllTimes(dt, durSlots, bayBlocks, realBookings) {
   const hrs = getHours(dt), result = [];
   for (let i = 0; i <= hrs.length - durSlots; i++) {
     const needed = hrs.slice(i, i + durSlots);
     const consecutive = needed.every((s, j) => j === 0 || toH(s) - toH(needed[j - 1]) === 0.5);
     if (!consecutive) continue;
-    const anyBayFree = [1,2,3,4,5].some(bay => needed.every(s => !getBk(dt, s).includes(bay) && !isBayBlocked(bay, dt, s, bayBlocks)));
+    const anyBayFree = [1,2,3,4,5].some(bay => needed.every(s => !getBk(dt, s, realBookings).includes(bay) && !isBayBlocked(bay, dt, s, bayBlocks)));
     result.push({ time: hrs[i], open: anyBayFree });
   }
   return result;
@@ -170,31 +177,31 @@ function lessonPrice(tier, hasCredits, creditCoachId, selCoach) {
 }
 
 /* Lesson helpers */
-function getLessonTimes(dt, coachFilter, bayBlocks) {
+function getLessonTimes(dt, coachFilter, bayBlocks, realBookings) {
   const dn = dayName(dt), hrs = getHours(dt), times = new Set();
   (coachFilter ? [coachFilter] : COACHES).forEach(c => {
     const avSlots = c.av[dn] || [];
     avSlots.forEach((s, si) => {
       const next = avSlots[si + 1];
       if (!next || toH(next) - toH(s) !== 0.5) return;
-      if ([1,2,3,4,5].some(bay => [s, next].every(sl => !getBk(dt, sl).includes(bay) && !isBayBlocked(bay, dt, sl, bayBlocks))) && hrs.includes(s)) times.add(s);
+      if ([1,2,3,4,5].some(bay => [s, next].every(sl => !getBk(dt, sl, realBookings).includes(bay) && !isBayBlocked(bay, dt, sl, bayBlocks))) && hrs.includes(s)) times.add(s);
     });
   });
   return [...times].sort((a, b) => toH(a) - toH(b));
 }
-function getCoachesAt(dt, time, bayBlocks) {
+function getCoachesAt(dt, time, bayBlocks, realBookings) {
   const dn = dayName(dt);
   return COACHES.filter(c => {
     const avSlots = c.av[dn] || [], si = avSlots.indexOf(time);
     if (si === -1) return false;
     const next = avSlots[si + 1];
     if (!next || toH(next) - toH(time) !== 0.5) return false;
-    return [1,2,3,4,5].some(bay => [time, next].every(sl => !getBk(dt, sl).includes(bay) && !isBayBlocked(bay, dt, sl, bayBlocks)));
+    return [1,2,3,4,5].some(bay => [time, next].every(sl => !getBk(dt, sl, realBookings).includes(bay) && !isBayBlocked(bay, dt, sl, bayBlocks)));
   });
 }
-function autoAssignBay(dt, time, bayBlocks) {
+function autoAssignBay(dt, time, bayBlocks, realBookings) {
   const hrs = getHours(dt), si = hrs.indexOf(time), needed = [time, hrs[si + 1]];
-  for (let bay = 1; bay <= 5; bay++) { if (needed.every(s => !getBk(dt, s).includes(bay) && !isBayBlocked(bay, dt, s, bayBlocks))) return bay; }
+  for (let bay = 1; bay <= 5; bay++) { if (needed.every(s => !getBk(dt, s, realBookings).includes(bay) && !isBayBlocked(bay, dt, s, bayBlocks))) return bay; }
   return 1;
 }
 
@@ -285,6 +292,7 @@ export default function BirdieGolfWebsite() {
 
   /* Upcoming & Transactions */
   const [upcomingBk, setUpcomingBk] = useState([]);
+  const [allBookings, setAllBookings] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [memHistory] = useState([]);
 
@@ -292,7 +300,6 @@ export default function BirdieGolfWebsite() {
   const creditCoach = COACHES.find(c => c.id === creditCoachId);
   const tierData = TIERS[tier] || null;
   const resetBk = () => { setBkStep(0); setBkDate(null); setBkDur(null); setBkTime(null); setBkBay(null); setBkAgree(false); };
-  const hasCard = cards.length > 0;
   const resetLes = () => { setLesStep(0); setLesDate(null); setLesTime(null); setLesCoach(null); setLesAgree(false); };
 
   /* ─── Load data from Supabase on mount ─── */
@@ -302,67 +309,39 @@ export default function BirdieGolfWebsite() {
       if (pricing?.[0]) setCfg({ pk: pricing[0].peak_rate, op: pricing[0].off_peak_rate, wk: pricing[0].weekend_rate });
       const blocks = await sb.get("bay_blocks", "select=*");
       if (blocks?.length) setBayBlocks(blocks);
+      const allBks = await sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled&order=date.asc");
+      if (allBks?.length) setAllBookings(allBks);
     })();
   }, []);
 
-  /* Load user-specific data (transactions, bookings, membership, lesson credits) */
+  /* Load user-specific data (transactions, bookings, profile) */
   const loadUserData = useCallback(async (cid) => {
     if (!cid) return;
-    // Transactions
+    // Load customer profile (tier, credits, renewal date)
+    const profile = await sb.get("customers", `select=*&id=eq.${cid}`);
+    if (profile?.[0]) {
+      const p = profile[0];
+      if (p.tier && p.tier !== "none") {
+        setTier(p.tier);
+        setBayCredits(Number(p.bay_credits_remaining) || 0);
+        if (p.member_since) setMemberSince(new Date(p.member_since + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+        if (p.renewal_date) setRenewDate(new Date(p.renewal_date + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+      }
+      if (p.email) setProfEmail(p.email);
+      if (p.phone) setProfPhone(p.phone);
+      if (p.square_customer_id) setSqCustId(p.square_customer_id);
+    }
     const txns = await sb.get("transactions", `select=*&customer_id=eq.${cid}&order=created_at.desc`);
     if (txns?.length) setTransactions(txns.map(t => ({
       desc: t.description, date: new Date(t.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       method: t.payment_label || "Card", amt: "$" + Number(t.amount).toFixed(2),
     })));
-    // Upcoming bookings
-    const today = new Date(); today.setHours(0,0,0,0);
     const bks = await sb.get("bookings", `select=*&customer_id=eq.${cid}&status=eq.confirmed&order=date.asc`);
-    if (bks?.length) {
-      const upcoming = bks.filter(b => new Date(b.date + "T23:59:59") >= today);
-      setUpcomingBk(upcoming.map(b => ({
-        type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
-        sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
-      })));
-    }
-    // Membership — always reload from Supabase (reflects admin changes)
-    const custData = await sb.get("customers", `id=eq.${cid}&select=tier,bay_credits_remaining,bay_credits_total,renewal_date,member_since`);
-    if (custData?.[0]) {
-      const c = custData[0];
-      setTier(c.tier || "none");
-      setBayCredits(c.bay_credits_remaining || 0);
-      if (c.renewal_date) setRenewDate(new Date(c.renewal_date + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
-      if (c.member_since) setMemberSince(new Date(c.member_since + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
-    }
-    // Active lesson package
-    const pkgs = await sb.get("lesson_packages", `customer_id=eq.${cid}&status=eq.active&select=*&order=purchase_date.desc`);
-    if (pkgs?.length) {
-      const pkg = pkgs[0];
-      setTotL(pkg.remaining_credits || 0);
-      setMaxL(pkg.total_credits || 0);
-      setCreditCoachId(pkg.coach_id || null);
-      setCreditPkg(pkg.name || "");
-      if (pkg.purchase_date) setCreditPurchaseDate(new Date(pkg.purchase_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }));
-      if (pkg.expiry_date) setCreditExp(new Date(pkg.expiry_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }));
-    }
+    if (bks?.length) setUpcomingBk(bks.map(b => ({
+      type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
+      sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
+    })));
   }, []);
-
-  /* Load saved cards from Supabase */
-  const loadCards = useCallback(async (cid) => {
-    if (!cid) return;
-    const saved = await sb.get("payment_methods", `customer_id=eq.${cid}&select=*&order=created_at.asc`);
-    if (saved?.length) setCards(saved.map(c => ({ id: c.id, brand: c.brand, last4: c.last4, exp: c.exp })));
-  }, []);
-
-  /* ─── Email notifications ─── */
-  const sendEmail = async (type, data) => {
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/square-proxy`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
-        body: JSON.stringify({ action: "email.send", type, ...data }),
-      });
-    } catch (e) { console.warn("Email send failed:", e); }
-  };
 
   /* ─── Save booking to Supabase ─── */
   const saveBayBooking = async (bookingData) => {
@@ -394,18 +373,6 @@ export default function BirdieGolfWebsite() {
     // Always update local display
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     setTransactions(p => [{ desc: "Bay Booking · Bay " + bookingData.bay, date: today, method: "Visa ····4242", amt: "$" + bookingData.total.toFixed(2) }, ...p]);
-    // Send confirmation emails
-    const emailData = {
-      customer_name: onbF + " " + onbL,
-      customer_email: profEmail || onbE,
-      date: fmtDateLong(bookingData.date),
-      time: bookingData.time,
-      duration: bookingData.durSlots * 0.5 + " hr" + (bookingData.durSlots > 2 ? "s" : ""),
-      bay: "Bay " + bookingData.bay,
-      total: "$" + bookingData.total.toFixed(2),
-      credits_used: bookingData.credits > 0 ? bookingData.credits + " hr credit" + (bookingData.credits > 1 ? "s" : "") : null,
-    };
-    sendEmail("bay_booking", emailData);
     return result;
   };
 
@@ -436,18 +403,6 @@ export default function BirdieGolfWebsite() {
     // Always update local display
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     setTransactions(p => [{ desc: "Lesson · " + bookingData.coachName, date: today, method: bookingData.credit ? "Credit" : "Visa ····4242", amt: "$" + bookingData.total.toFixed(2) }, ...p]);
-    // Send confirmation emails
-    const emailData = {
-      customer_name: onbF + " " + onbL,
-      customer_email: profEmail || onbE,
-      date: fmtDateLong(bookingData.date),
-      time: bookingData.time,
-      coach: bookingData.coachName,
-      bay: "Bay " + bookingData.bay,
-      total: bookingData.credit ? "1 Lesson Credit" : "$" + bookingData.total.toFixed(2),
-      payment_method: bookingData.credit ? "Lesson Credit" : "Card on file",
-    };
-    sendEmail("lesson_booking", emailData);
     return result;
   };
 
@@ -467,9 +422,9 @@ export default function BirdieGolfWebsite() {
         </div>
         <p style={LS.tagline}>Premium Indoor Golf Experience</p>
         <div style={LS.features}>
-          <span style={LS.feat}>5 Trackman iO Bays</span><span style={LS.featDot}>·</span>
-          <span style={LS.feat}>Pro Lessons</span><span style={LS.featDot}>·</span>
-          <span style={LS.feat}>Up to 4/Bay</span>
+          <span style={LS.feat}>🎯 5 Trackman iO Bays</span><span style={LS.featDot}>·</span>
+          <span style={LS.feat}>🏌️ Pro Lessons</span><span style={LS.featDot}>·</span>
+          <span style={LS.feat}>👥 Up to 4/Bay</span>
         </div>
         <div style={LS.divider} />
         <p style={LS.signInLabel}>Sign in or create an account to book</p>
@@ -481,7 +436,7 @@ export default function BirdieGolfWebsite() {
         <button style={{ ...S.b1, marginTop: 16, opacity: ph.length >= 10 ? 1 : 0.4 }} onClick={() => { if (ph.length >= 10) setAuthStep("otp"); }}>Continue</button>
         <div style={LS.demo}>Demo: any 10+ digits</div>
         <div style={LS.footer}>
-          <span style={LS.footerText}>45 NE 26th St., Wynwood, Miami</span>
+          <span style={LS.footerText}>📍 45 NE 26th St., Wynwood, Miami</span>
           <span style={LS.footerText}>Mon–Fri 7am–10pm · Sat–Sun 9am–9pm</span>
         </div>
       </>
@@ -499,30 +454,7 @@ export default function BirdieGolfWebsite() {
             onChange={e => { const val = e.target.value.replace(/[^0-9]/g, ""); const next = [...otp]; next[i] = val; setOtp(next); if (val && i < 5) otpRefs[i + 1].current?.focus(); }}
             onKeyDown={e => { if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs[i - 1].current?.focus(); }} />)}
         </div>
-        <button style={{ ...S.b1, marginTop: 16, opacity: otp.every(d => d) ? 1 : 0.4 }} onClick={async () => {
-          if (!otp.every(d => d)) return;
-          // Look up phone in Supabase — skip onboarding if existing customer
-          const existing = await sb.get("customers", `phone=eq.${ph}&select=*`);
-          if (existing?.length) {
-            const cust = existing[0];
-            setCustomerId(cust.id);
-            setSqCustId(cust.square_customer_id || null);
-            setOnbF(cust.first_name || "");
-            setOnbL(cust.last_name || "");
-            setOnbE(cust.email || "");
-            setProfPhone(cust.phone || "");
-            setProfEmail(cust.email || "");
-            setTier(cust.tier || "none");
-            setBayCredits(cust.bay_credits_remaining || 0);
-            if (cust.renewal_date) setRenewDate(new Date(cust.renewal_date + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
-            if (cust.member_since) setMemberSince(new Date(cust.member_since + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
-            loadUserData(cust.id);
-            loadCards(cust.id);
-            setLogged(true);
-          } else {
-            setAuthStep("onboard");
-          }
-        }}>Verify</button>
+        <button style={{ ...S.b1, marginTop: 16, opacity: otp.every(d => d) ? 1 : 0.4 }} onClick={() => { if (otp.every(d => d)) setAuthStep("onboard"); }}>Verify</button>
         <div style={LS.demo}>Demo: any 6 digits</div>
         <button style={{ ...S.lk, marginTop: 12, display: "block", textAlign: "center", width: "100%" }} onClick={() => { setAuthStep("phone"); setOtp(["","","","","",""]); }}>← Back</button>
       </>
@@ -555,7 +487,7 @@ export default function BirdieGolfWebsite() {
             // Link Square ID back to Supabase
             if (sbId) await sb.patch("customers", `id=eq.${sbId}`, { square_customer_id: sqId });
           }
-          setLogged(true); if (sbId) { loadUserData(sbId); loadCards(sbId); } fire("Welcome, " + onbF + "!");
+          setLogged(true); if (sbId) loadUserData(sbId); fire("Welcome, " + onbF + "! 🎉");
         }}>Create Account</button>
       </>
     );
@@ -574,7 +506,20 @@ export default function BirdieGolfWebsite() {
     { k: "profile", l: "Profile", ic: X.user },
   ];
 
-  const handleNav = (k) => { setTab(k); if (k === "book") resetBk(); if (k === "lessons") { resetLes(); setLesTab("book"); } };
+  const handleNav = async (k) => {
+    setTab(k);
+    if (k === "book") {
+      resetBk();
+      // Refresh all bookings for fresh availability
+      const fresh = await sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled&order=date.asc");
+      if (fresh?.length) setAllBookings(fresh);
+    }
+    if (k === "lessons") {
+      resetLes(); setLesTab("book");
+      const fresh = await sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled&order=date.asc");
+      if (fresh?.length) setAllBookings(fresh);
+    }
+  };
 
   /* ─── TOP NAV (Desktop/Tablet) ─── */
   const TopNav = () => (
@@ -691,10 +636,10 @@ export default function BirdieGolfWebsite() {
 
       <h3 style={{ ...S.sh, marginTop: 24 }}>About Us</h3>
       <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10, marginBottom: 18 }}>
-        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Hours</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Mon–Fri 7am–10pm</p><p style={{ fontSize: 12, color: "#555" }}>Sat–Sun 9am–9pm</p></div>
-        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Location</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>45 NE 26th St., Unit C, Miami, FL 33137</p></div>
+        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>🕐 Hours</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Mon–Fri 7am–10pm</p><p style={{ fontSize: 12, color: "#555" }}>Sat–Sun 9am–9pm</p></div>
+        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>📍 Location</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>45 NE 26th St., Unit C, Miami, FL 33137</p></div>
         <div style={{ ...S.aboutCard, gridColumn: isDesktop ? "auto" : "1 / -1" }}>
-          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Bay Rates</p>
+          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>💰 Bay Rates</p>
           <p style={{ fontSize: 12, color: "#2D8A5E", lineHeight: 1.8 }}>Non-Peak ${cfg.op}/hr</p>
           <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 7am–5pm · Sat–Sun 9am–9pm</p>
           <p style={{ fontSize: 12, color: "#E8890C", lineHeight: 1.8, marginTop: 4 }}>Peak ${cfg.pk}/hr</p>
@@ -745,7 +690,8 @@ export default function BirdieGolfWebsite() {
                 await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: price.total, credits: price.credits, disc: price.disc });
                 setUpcomingBk(p => [...p, { type: "bay", label: "Bay " + bkBay, sub: fmtDate(bkDate) + " · " + bkTime + " · " + durH + "hr" + (durH > 1 ? "s" : "") }]);
                 if (tier === "player" && price.credits > 0) setBayCredits(c => Math.max(0, c - price.credits));
-                fire("Bay booked!"); resetBk(); setTab("home");
+                setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? dateKey(bkDate) : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
+                fire("Bay booked! ✓"); resetBk(); setTab("home");
               }}>Confirm & Pay</button>
             </div>
           </div>
@@ -755,15 +701,10 @@ export default function BirdieGolfWebsite() {
 
     return <>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>Book a Bay</h2>
-      {!hasCard && <div style={{ background: "#FFF0F0", border: "1px solid #E0392822", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: "#E03928", marginBottom: 4 }}>Payment method required</p>
-        <p style={{ fontSize: 12, color: "#E03928cc", marginBottom: 10 }}>Add a card to your profile before booking a bay.</p>
-        <button style={{ ...S.b1, background: "#E03928", maxWidth: 180, fontSize: 13, padding: "10px 14px" }} onClick={() => setTab("profile")}>Add Card</button>
-      </div>}
       {tier === "champion" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#124A2B" }}>Unlimited · Max 2hrs/booking</span></div>}
       {tier === "player" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#2D8A5E" }}>{bayCredits > 0 ? bayCredits + " hrs of credits remaining this cycle" : "No bay credits remaining this cycle"}</span></div>}
 
-      {hasCard && <><h4 style={S.stepH}>Select Date</h4>
+      <h4 style={S.stepH}>Select Date</h4>
       <div style={S.dateScroll}>
         {days14.map(d => {
           const sel = bkDate && dateKey(bkDate) === dateKey(d);
@@ -775,14 +716,19 @@ export default function BirdieGolfWebsite() {
             <span style={{ fontSize: 10, color: sel ? "#ffffffcc" : "#aaa" }}>{d.toLocaleDateString("en-US", { month: "short" })}</span>
           </button>;
         })}
-      </div></>}
+      </div>
 
       {bkDate && <><h4 style={S.stepH}>Select Duration</h4>
         <div style={{ ...S.durGrid, gridTemplateColumns: isDesktop ? "repeat(8, 1fr)" : "repeat(4, 1fr)" }}>
           {durs.filter(d => d.slots <= champMax).map(d => {
             const sel = bkDur === d.slots;
+            const preview = calcPrice(bkDate, getHours(bkDate)[0] || "9:00 AM", d.slots, tier, bayCredits, cfg);
             return <button key={d.slots} style={{ ...S.durBtn, ...(sel ? S.durSel : {}) }} onClick={() => { setBkDur(d.slots); setBkTime(null); setBkBay(null); }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: sel ? "#fff" : "#1a1a1a" }}>{d.l}</span>
+              <span style={{ fontSize: 11, color: sel ? "#ffffffcc" : "#888" }}>
+                {preview.total === 0 && (tier === "champion" || preview.credits > 0) ? "$0" : "$" + preview.total.toFixed(0)}
+                {preview.base > 0 && preview.total < preview.base && <span style={{ textDecoration: "line-through", marginLeft: 4, fontSize: 10, opacity: 0.6 }}>${preview.base.toFixed(0)}</span>}
+              </span>
             </button>;
           })}
         </div>
@@ -790,7 +736,7 @@ export default function BirdieGolfWebsite() {
 
       {bkDate && bkDur && <><h4 style={S.stepH}>Select Start Time</h4>
         <div style={{ ...S.timeGrid, gridTemplateColumns: isDesktop ? "repeat(6, 1fr)" : "repeat(4, 1fr)" }}>
-          {getAllTimes(bkDate, bkDur, bayBlocks).map(({ time: t, open }) => {
+          {getAllTimes(bkDate, bkDur, bayBlocks, allBookings).map(({ time: t, open }) => {
             const sel = bkTime === t, pk = isPeak(bkDate, t), wk = isWeekend(bkDate);
             return <button key={t} style={{ ...S.timeBtn, ...(sel ? S.timeSel : {}), ...(!open ? { opacity: 0.35, cursor: "not-allowed" } : {}), borderColor: sel ? "#2D8A5E" : !open ? "#e8e8e6" : pk ? "#E8890C" : wk ? "#5B6DCD" : "#e8e8e6" }}
               onClick={() => { if (open) { setBkTime(t); setBkBay(null); } }} disabled={!open}>
@@ -804,7 +750,7 @@ export default function BirdieGolfWebsite() {
 
       {bkDate && bkDur && bkTime && <><h4 style={S.stepH}>Select Bay</h4>
         <div style={S.bayGrid}>
-          {getAvailBays(bkDate, bkTime, bkDur, bayBlocks).map(b => {
+          {getAvailBays(bkDate, bkTime, bkDur, bayBlocks, allBookings).map(b => {
             const sel = bkBay === b.bay;
             return <button key={b.bay} style={{ ...S.bayBtn, ...(sel ? S.baySel : {}), ...(b.ok ? {} : S.bayOff) }} onClick={() => { if (b.ok) setBkBay(b.bay); }} disabled={!b.ok}>
               <span style={{ fontSize: 14, fontWeight: 700, color: sel ? "#fff" : b.ok ? "#1a1a1a" : "#ccc" }}>Bay {b.bay}</span>
@@ -834,7 +780,7 @@ export default function BirdieGolfWebsite() {
     if (lesTab === "book" && lesStep === 1 && lesDate && lesTime && lesCoach) {
       const coach = COACHES.find(c => c.id === lesCoach);
       const lp = lessonPrice(tier, totL > 0, creditCoachId, lesCoach);
-      const bayAssigned = autoAssignBay(lesDate, lesTime, bayBlocks);
+      const bayAssigned = autoAssignBay(lesDate, lesTime, bayBlocks, allBookings);
       const wrongCoach = totL > 0 && lesCoach !== creditCoachId;
       const cancelFee = (tier && tier !== "none") ? (slotRate(lesDate, lesTime, cfg) * 0.8).toFixed(2) : slotRate(lesDate, lesTime, cfg).toFixed(2);
       return <>
@@ -846,7 +792,7 @@ export default function BirdieGolfWebsite() {
               <div style={S.confDiv} />
               <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700, color: lp.credit ? "#2D8A5E" : "#1a1a1a" }}>{lp.label}</span></div>
             </div>
-            {wrongCoach && <div style={{ ...S.polBox, background: "#FFF0F0", borderColor: "#E0392822" }}><p style={{ fontSize: 12, color: "#E03928", lineHeight: 1.5 }}>Credits only valid with {creditCoach?.n}. Full rate applies.</p></div>}
+            {wrongCoach && <div style={{ ...S.polBox, background: "#FFF0F0", borderColor: "#E0392822" }}><p style={{ fontSize: 12, color: "#E03928", lineHeight: 1.5 }}>⚠️ Credits only valid with {creditCoach?.n}. Full rate applies.</p></div>}
           </div>
           <div>
             <div style={S.polBox}>
@@ -862,7 +808,8 @@ export default function BirdieGolfWebsite() {
                 setUpcomingBk(p => [...p, { type: "lesson", label: "Lesson · " + coach?.n, sub: fmtDate(lesDate) + " · " + lesTime + " · 1hr" }]);
                 if (lp.credit) { setTotL(c => Math.max(0, c - 1)); setCreditUsage(p => [...p, { date: fmtDate(new Date()), desc: "Lesson with " + coach?.n }]); }
                 setLesHistory(p => [...p, { type: "lesson", desc: "Lesson with " + coach?.n, date: fmtDate(new Date()), amt: lp.credit ? "1 credit" : lp.label }]);
-                fire("Lesson booked!"); resetLes(); setTab("home");
+                setAllBookings(p => [...p, { id: Date.now().toString(), bay: bayAssigned, date: lesDate ? dateKey(lesDate) : "", start_time: lesTime, duration_slots: 2, status: "confirmed", type: "lesson" }]);
+                fire("Lesson booked! ✓"); resetLes(); setTab("home");
               }}>Confirm & Book</button>
             </div>
           </div>
@@ -889,16 +836,11 @@ export default function BirdieGolfWebsite() {
 
     return <>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 14 }}>Lessons</h2>
-      {!hasCard && <div style={{ background: "#FFF0F0", border: "1px solid #E0392822", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: "#E03928", marginBottom: 4 }}>Payment method required</p>
-        <p style={{ fontSize: 12, color: "#E03928cc", marginBottom: 10 }}>Add a card to your profile before booking lessons or purchasing packages.</p>
-        <button style={{ ...S.b1, background: "#E03928", maxWidth: 180, fontSize: 13, padding: "10px 14px" }} onClick={() => setTab("profile")}>Add Card</button>
-      </div>}
-      {hasCard && <div style={S.tabs}>
+      <div style={S.tabs}>
         {["book", "credits"].map(t => <button key={t} style={{ ...S.tabBtn, ...(lesTab === t ? S.tabSel : {}) }} onClick={() => { setLesTab(t); setSelPkg(null); setPkgCoach(null); }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
-      </div>}
+      </div>
 
-      {hasCard && lesTab === "book" && <>
+      {lesTab === "book" && <>
         {totL > 0 && <div style={{ ...S.creditBanner, background: "#5B6DCD12", borderColor: "#5B6DCD33" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ background: "#5B6DCD", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totL}</span><span style={{ fontSize: 13, fontWeight: 600, color: "#5B6DCD" }}>Lesson Credits Available</span></div>
           <p style={{ fontSize: 11, color: "#888", marginTop: 4 }}>{creditPkg} · {creditCoach?.n}</p>
@@ -912,30 +854,30 @@ export default function BirdieGolfWebsite() {
           <h4 style={S.stepH}>Select Date</h4>
           <div style={S.dateScroll}>{days14.map(d => { const dn = dayName(d); const hasCoach = COACHES.some(c => (c.av[dn] || []).length > 0); return <DateBtn key={dateKey(d)} d={d} sel={lesDate && dateKey(lesDate) === dateKey(d)} disabled={!hasCoach} />; })}</div>
           {lesDate && <><h4 style={S.stepH}>Select Start Time</h4><div style={{ ...S.timeGrid, gridTemplateColumns: isDesktop ? "repeat(6,1fr)" : "repeat(4,1fr)" }}>
-            {getLessonTimes(lesDate, null, bayBlocks).map(t => { const sel = lesTime === t; return <button key={t} style={{ ...S.timeBtn, ...(sel ? { ...S.timeSel, background: "#5B6DCD", borderColor: "#5B6DCD" } : { borderColor: "#5B6DCD44" }) }} onClick={() => { setLesTime(t); setLesCoach(null); }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : "#1a1a1a" }}>{t}</span></button>; })}
+            {getLessonTimes(lesDate, null, bayBlocks, allBookings).map(t => { const sel = lesTime === t; return <button key={t} style={{ ...S.timeBtn, ...(sel ? { ...S.timeSel, background: "#5B6DCD", borderColor: "#5B6DCD" } : { borderColor: "#5B6DCD44" }) }} onClick={() => { setLesTime(t); setLesCoach(null); }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : "#1a1a1a" }}>{t}</span></button>; })}
           </div></>}
           {lesDate && lesTime && <><h4 style={S.stepH}>Select Instructor</h4><div style={{ display: "flex", gap: 10 }}>
-            {getCoachesAt(lesDate, lesTime, bayBlocks).map(c => <CoachCard key={c.id} c={c} sel={lesCoach === c.id} locked={totL > 0 && c.id !== creditCoachId} onClick={() => { if (!(totL > 0 && c.id !== creditCoachId)) setLesCoach(c.id); }} />)}
+            {getCoachesAt(lesDate, lesTime, bayBlocks, allBookings).map(c => <CoachCard key={c.id} c={c} sel={lesCoach === c.id} locked={totL > 0 && c.id !== creditCoachId} onClick={() => { if (!(totL > 0 && c.id !== creditCoachId)) setLesCoach(c.id); }} />)}
           </div></>}
         </> : <>
           <h4 style={S.stepH}>Select Instructor</h4>
           <div style={{ display: "flex", gap: 10 }}>{COACHES.map(c => <CoachCard key={c.id} c={c} sel={lesCoach === c.id} locked={totL > 0 && c.id !== creditCoachId} onClick={() => { if (!(totL > 0 && c.id !== creditCoachId)) { setLesCoach(c.id); setLesDate(null); setLesTime(null); } }} />)}</div>
           {lesCoach && <><h4 style={S.stepH}>Select Date</h4><div style={S.dateScroll}>{days14.map(d => { const coach = COACHES.find(c => c.id === lesCoach); const hasSlots = (coach?.av[dayName(d)] || []).length > 0; return <DateBtn key={dateKey(d)} d={d} sel={lesDate && dateKey(lesDate) === dateKey(d)} disabled={!hasSlots} />; })}</div></>}
           {lesCoach && lesDate && <><h4 style={S.stepH}>Select Start Time</h4><div style={{ ...S.timeGrid, gridTemplateColumns: isDesktop ? "repeat(6,1fr)" : "repeat(4,1fr)" }}>
-            {getLessonTimes(lesDate, COACHES.find(c => c.id === lesCoach), bayBlocks).map(t => { const sel = lesTime === t; return <button key={t} style={{ ...S.timeBtn, ...(sel ? { ...S.timeSel, background: "#5B6DCD", borderColor: "#5B6DCD" } : { borderColor: "#5B6DCD44" }) }} onClick={() => setLesTime(t)}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : "#1a1a1a" }}>{t}</span></button>; })}
+            {getLessonTimes(lesDate, COACHES.find(c => c.id === lesCoach), bayBlocks, allBookings).map(t => { const sel = lesTime === t; return <button key={t} style={{ ...S.timeBtn, ...(sel ? { ...S.timeSel, background: "#5B6DCD", borderColor: "#5B6DCD" } : { borderColor: "#5B6DCD44" }) }} onClick={() => setLesTime(t)}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : "#1a1a1a" }}>{t}</span></button>; })}
           </div></>}
         </>}
 
         {lesDate && lesTime && lesCoach && (() => {
           const coach = COACHES.find(c => c.id === lesCoach), lp = lessonPrice(tier, totL > 0, creditCoachId, lesCoach);
           return <div style={{ ...S.pricePreview, borderColor: "#5B6DCD33", background: "#5B6DCD08", marginTop: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><p style={{ fontSize: 13, fontWeight: 600 }}>{coach?.n} · 1 hr</p><p style={{ fontSize: 11, color: "#888" }}>Bay {autoAssignBay(lesDate, lesTime, bayBlocks)}</p></div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><p style={{ fontSize: 13, fontWeight: 600 }}>{coach?.n} · 1 hr</p><p style={{ fontSize: 11, color: "#888" }}>Bay {autoAssignBay(lesDate, lesTime, bayBlocks, allBookings)}</p></div>
             <span style={{ fontSize: 16, fontWeight: 700, color: lp.credit ? "#2D8A5E" : "#5B6DCD" }}>{lp.label}</span></div></div>;
         })()}
         {lesDate && lesTime && lesCoach && <button style={{ ...S.b1, marginTop: 12, background: "#5B6DCD" }} onClick={() => setLesStep(1)}>Continue to Confirm</button>}
       </>}
 
-      {hasCard && lesTab === "credits" && <>
+      {lesTab === "credits" && <>
         {totL > 0 ? <>
           <div style={S.creditDetailCard}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><p style={{ fontSize: 15, fontWeight: 700 }}>{creditPkg}</p><span style={{ background: "#5B6DCD", color: "#fff", fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 10 }}>{totL}/{maxL}</span></div>
@@ -966,16 +908,7 @@ export default function BirdieGolfWebsite() {
               await sb.post("transactions", { customer_id: customerId, description: selPkg.name + " · " + coach?.n, date: dateKey(today), amount: selPkg.price, payment_label: "Visa ····4242" });
               setTotL(selPkg.credits); setMaxL(selPkg.credits); setCreditCoachId(pkgCoach); setCreditPkg(selPkg.name); setCreditPurchaseDate(fmtShort(today)); setCreditExp(fmtShort(expDate)); setCreditUsage([]);
               setTransactions(p => [{ desc: selPkg.name + " · " + coach?.n, date: fmtShort(today), method: "Visa ····4242", amt: "$" + selPkg.price + ".00" }, ...p]);
-              sendEmail("lesson_package", {
-                customer_name: onbF + " " + onbL,
-                customer_email: profEmail || onbE,
-                package: selPkg.name,
-                credits: selPkg.credits,
-                coach: coach?.n,
-                total: "$" + selPkg.price + ".00",
-                expiry: fmtShort(expDate),
-              });
-              fire("Package purchased!"); setSelPkg(null); setPkgCoach(null);
+              fire("Package purchased! ✓"); setSelPkg(null); setPkgCoach(null);
             }}>Buy</button></div>; })()}
         </>}
       </>}
@@ -1006,7 +939,7 @@ export default function BirdieGolfWebsite() {
           </div>
           {tier === "player" && <div style={{ marginTop: 16 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}><span style={{ fontSize: 11, color: "#ffffffbb" }}>Bay Hours</span><span style={{ fontSize: 11, color: "#fff", fontWeight: 600 }}>{8 - bayCredits}/8 used · {bayCredits} left</span></div><div style={{ ...S.bar, background: "#ffffff33" }}><div style={{ ...S.barF, width: ((8 - bayCredits) / 8 * 100) + "%", background: "#fff" }} /></div></div>}
           {tier === "champion" && <p style={{ fontSize: 13, color: "#ffffffcc", marginTop: 14 }}>Unlimited Bay Access</p>}
-          {totL > 0 && <p style={{ fontSize: 11, color: "#ffffffaa", marginTop: 10 }}>{totL} lesson credit{totL > 1 ? "s" : ""} active</p>}
+          {totL > 0 && <p style={{ fontSize: 11, color: "#ffffffaa", marginTop: 10 }}>🎓 {totL} lesson credit{totL > 1 ? "s" : ""} active</p>}
           <p style={{ fontSize: 11, color: "#ffffff88", marginTop: 10 }}>Renews {renewDate}</p>
         </div>
         <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -1026,15 +959,46 @@ export default function BirdieGolfWebsite() {
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><span style={{ background: t.c, color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontFamily: mono, letterSpacing: 1 }}>{t.badge}</span><span style={{ fontSize: 16, fontWeight: 700 }}>{t.n}</span></div>
           <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>${t.price}<span style={{ fontSize: 13, color: "#888", fontWeight: 400 }}>/mo</span></p>
           {t.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}><span style={{ color: t.c, flexShrink: 0 }}>{X.chk(14)}</span><span style={{ fontSize: 12 }}>{p}</span></div>)}
-          <div style={{ marginTop: 14 }}>{k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span> : hasCard ? <button style={{ ...S.b1, background: t.c }} onClick={() => setMemModal({ type: "switch", to: k })}>{Object.keys(TIERS).indexOf(k) > Object.keys(TIERS).indexOf(tier) ? "Upgrade" : "Switch"}</button> : <button style={{ ...S.b1, background: "#ccc" }} onClick={() => setTab("profile")}>Add Card First</button>}</div>
+          <div style={{ marginTop: 14 }}>{k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span> : <button style={{ ...S.b1, background: t.c }} onClick={() => setMemModal({ type: "switch", to: k })}>{Object.keys(TIERS).indexOf(k) > Object.keys(TIERS).indexOf(tier) ? "Upgrade" : "Switch"}</button>}</div>
         </div>)}
       </div>}
 
-      {memModal === "cancel" && <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
-        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Cancel Membership?</h3>
-        <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 16 }}>Your {td?.n} membership will remain active until {renewDate}. 7-day notice is required.</p>
-        <div style={{ display: "flex", gap: 10 }}><button style={S.b2} onClick={() => setMemModal(null)}>Keep Plan</button><button style={{ ...S.b1, flex: 2, background: "#E03928" }} onClick={async () => { await sb.post("membership_history", { customer_id: customerId, action: "cancel", tier, amount: 0, date: dateKey(new Date()) }); fire("Membership cancelled"); setMemModal(null); }}>Confirm Cancel</button></div>
-      </div></div>}
+      {memModal === "cancel" && (() => {
+        // Determine if within 7 days of renewal
+        const today = new Date(); today.setHours(0,0,0,0);
+        const rd = renewDate ? new Date(renewDate + "T00:00:00") : null;
+        const daysToRenewal = rd ? Math.ceil((rd - today) / 86400000) : 999;
+        const withinWindow = daysToRenewal >= 0 && daysToRenewal <= 7;
+        return <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Cancel Membership?</h3>
+          {withinWindow ? (
+            <div style={{ background: "#FFF8E8", border: "1px solid #E8890C44", borderRadius: 10, padding: 14, marginBottom: 16 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "#E8890C", marginBottom: 6 }}>⚠️ Within 7-Day Renewal Window</p>
+              <p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Your renewal date is {renewDate} — within 7 days. Your {td?.n} membership <strong>will renew this cycle</strong> and remain active until then, but <strong>will not auto-renew after that</strong>.</p>
+            </div>
+          ) : (
+            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 16 }}>Your {td?.n} membership will be <strong>cancelled immediately</strong>. Access ends today.</p>
+          )}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button style={S.b2} onClick={() => setMemModal(null)}>Keep Plan</button>
+            <button style={{ ...S.b1, flex: 2, background: "#E03928" }} onClick={async () => {
+              const action = withinWindow ? "cancel_end_of_cycle" : "cancel";
+              await sb.post("membership_history", { customer_id: customerId, action: "cancel", tier, amount: 0, date: dateKey(new Date()) });
+              await sb.post("transactions", { customer_id: customerId, description: (withinWindow ? "Membership Cancellation Scheduled — " : "Membership Cancelled — ") + (td?.n || "") + " Plan", date: dateKey(new Date()), amount: 0, payment_label: "System" });
+              if (!withinWindow) {
+                await sb.patch("customers", `id=eq.${customerId}`, { tier: "none", bay_credits_remaining: 0 });
+                setTier("none"); setBayCredits(0);
+              }
+              // Send email notification via Square proxy / edge function
+              try {
+                await fetch(SQUARE_FN_URL, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` }, body: JSON.stringify({ action: "email.cancellation", customer_id: customerId, tier: td?.n, renewal_date: renewDate, within_window: withinWindow }) });
+              } catch(e) { console.warn("Email notification failed", e); }
+              fire(withinWindow ? "Cancellation scheduled after " + renewDate : "Membership cancelled");
+              setMemModal(null);
+            }}>{withinWindow ? "Schedule Cancellation" : "Confirm Cancel"}</button>
+          </div>
+        </div></div>;
+      })()}
 
       {memModal?.type === "switch" && <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
         <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Switch to {TIERS[memModal.to]?.n}?</h3>
@@ -1048,15 +1012,7 @@ export default function BirdieGolfWebsite() {
           setMemberSince(todayStr); const rd=new Date(); rd.setMonth(rd.getMonth()+1); setRenewDate(rd.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}));
           await sb.post("transactions", { customer_id: customerId, description: TIERS[newTier]?.n + " Membership", date: dateKey(new Date()), amount: newPrice, payment_label: "Visa ····4242" });
           setTransactions(p => [{ desc: TIERS[newTier]?.n + " Membership", date: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}), method: "Visa ····4242", amt: "$" + newPrice + ".00" }, ...p]);
-          // Send membership confirmation email
-          sendEmail("membership", {
-            customer_name: onbF + " " + onbL,
-            customer_email: profEmail || onbE,
-            plan: TIERS[newTier]?.n + " Plan",
-            price: "$" + newPrice + "/mo",
-            renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
-          });
-          fire("Plan updated!"); setMemModal(null); setMemTab("current");
+          fire("Plan updated! ✓"); setMemModal(null); setMemTab("current");
         }}>Confirm Switch</button></div>
       </div></div>}
     </>;
@@ -1080,7 +1036,7 @@ export default function BirdieGolfWebsite() {
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}><button style={S.b2} onClick={() => { setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); }}>Cancel</button><button style={{ ...S.b1, flex: 2 }} onClick={async () => {
             if (newCard.num && newCard.exp && newCard.cvc) {
               await sb.post("payment_methods", { customer_id: customerId, brand: "Card", last4: newCard.num.slice(-4), exp: newCard.exp });
-              setCards(p => [...p, { id: Date.now(), brand: "Card", last4: newCard.num.slice(-4), exp: newCard.exp }]); setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); fire("Card added"); }
+              setCards(p => [...p, { id: Date.now(), brand: "Card", last4: newCard.num.slice(-4), exp: newCard.exp }]); setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); fire("Card added ✓"); }
           }}>Save Card</button></div></div>
         : <button style={S.addCardBtn} onClick={() => setAddCard(true)}>{X.plus(14)} Add Card</button>}
       </div>
@@ -1103,16 +1059,9 @@ export default function BirdieGolfWebsite() {
         <p style={{ fontSize: 13, color: "#888", marginBottom: 14 }}>Demo: any 6 digits</p>
         <div style={{ ...LS.otpRow, justifyContent: "center" }}>{editModal.otp.map((v, i) => <input key={i} style={{ ...LS.otpIn, width: 40, height: 44 }} type="text" maxLength={1} value={v} onChange={e => { const val = e.target.value.replace(/[^0-9]/g, ""); const next = [...editModal.otp]; next[i] = val; setEditModal(p => ({ ...p, otp: next })); }} />)}</div>
         <button style={{ ...S.b1, marginTop: 12 }} onClick={async () => {
-          if (editModal.type === "phone") {
-            setProfPhone(editModal.val);
-            await sb.patch("customers", `id=eq.${customerId}`, { phone: editModal.val });
-            if (sqCustId) await square("customer.update", { square_customer_id: sqCustId, phone: editModal.val.replace(/\D/g,"") });
-          } else {
-            setProfEmail(editModal.val);
-            await sb.patch("customers", `id=eq.${customerId}`, { email: editModal.val });
-            if (sqCustId) await square("customer.update", { square_customer_id: sqCustId, email: editModal.val });
-          }
-          fire((editModal.type === "phone" ? "Phone" : "Email") + " updated"); setEditModal(null);
+          if (editModal.type === "phone") { setProfPhone(editModal.val); await sb.patch("customers", `id=eq.${customerId}`, { phone: editModal.val }); }
+          else { setProfEmail(editModal.val); await sb.patch("customers", `id=eq.${customerId}`, { email: editModal.val }); }
+          fire((editModal.type === "phone" ? "Phone" : "Email") + " updated ✓"); setEditModal(null);
         }}>Verify & Save</button>
       </>}
       <button style={{ ...S.lk, marginTop: 10, display: "block", textAlign: "center", width: "100%" }} onClick={() => setEditModal(null)}>Cancel</button>
