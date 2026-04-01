@@ -306,6 +306,7 @@ export default function BirdieGolfWebsite() {
   /* Upcoming & Transactions */
   const [upcomingBk, setUpcomingBk] = useState([]);
   const [allBookings, setAllBookings] = useState([]);
+  const [manageBk, setManageBk] = useState(null); // booking being managed (edit/cancel)
   const [transactions, setTransactions] = useState([]);
   const [memHistory] = useState([]);
 
@@ -697,15 +698,21 @@ export default function BirdieGolfWebsite() {
             {b.type === "lesson" ? X.coach(18) : X.cal(18)}
           </div>
           <div style={{ flex: 1 }}><p style={{ fontSize: 14, fontWeight: 600 }}>{b.label}</p><p style={{ fontSize: 12, color: "#888" }}>{b.sub}</p></div>
+          <button
+            style={{ fontSize: 11, fontWeight: 600, color: b.type === "lesson" ? "#5B6DCD" : "#2D8A5E", background: "none", border: `1px solid ${b.type === "lesson" ? "#5B6DCD44" : "#2D8A5E44"}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: ff, flexShrink: 0 }}
+            onClick={() => setManageBk(b)}
+          >
+            Manage
+          </button>
         </div>
       ))}
 
       {/* Active Membership & Lesson Package cards — side by side */}
       {(tierData || totL > 0) && <>
         <h3 style={S.sh}>My Plans</h3>
-        <div style={{ display: (tierData && totL > 0 && isDesktop) ? "grid" : (tierData && totL > 0) ? "flex" : "block", gridTemplateColumns: "1fr 1fr", gap: 12, flexDirection: "column" }}>
+        <div style={{ display: "grid", gridTemplateColumns: (tierData && tier !== "none" && totL > 0) ? "1fr 1fr" : "1fr", gap: 12, alignItems: "stretch" }}>
           {tierData && tier !== "none" && (
-            <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, flex: 1 }}>
+            <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, display: "flex", flexDirection: "column" }}>
               <span style={S.mcBadge}>{tierData.badge}</span>
               <p style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginTop: 6 }}>{tierData.n} Plan</p>
               <p style={{ fontSize: 12, color: "#ffffffbb" }}>${tierData.price}/mo</p>
@@ -714,7 +721,7 @@ export default function BirdieGolfWebsite() {
             </div>
           )}
           {totL > 0 && creditCoach && (
-            <div style={{ background: "#5B6DCD12", border: "1px solid #5B6DCD33", borderRadius: 16, padding: 16, flex: 1, marginTop: (tierData && tier !== "none" && !isDesktop) ? 12 : 0 }}>
+            <div style={{ background: "#5B6DCD12", border: "1px solid #5B6DCD33", borderRadius: 16, padding: 16, display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontSize: 13, fontWeight: 600, color: "#5B6DCD" }}>{creditPkg}</span><span style={{ background: "#5B6DCD", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totL}/{maxL}</span></div>
               <p style={{ fontSize: 12, color: "#888" }}>{creditCoach.n}</p>
               <div style={{ ...S.bar, marginTop: 6 }}><div style={{ ...S.barF, width: (totL / maxL * 100) + "%", background: "#5B6DCD" }} /></div>
@@ -729,8 +736,6 @@ export default function BirdieGolfWebsite() {
 
       <h3 style={{ ...S.sh, marginTop: 24 }}>About Us</h3>
       <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10, marginBottom: 18 }}>
-        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Hours</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Mon–Fri 7am–10pm</p><p style={{ fontSize: 12, color: "#555" }}>Sat–Sun 9am–9pm</p></div>
-        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Location</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>45 NE 26th St., Unit C, Miami, FL 33137</p></div>
         <div style={{ ...S.aboutCard, gridColumn: isDesktop ? "auto" : "1 / -1" }}>
           <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Bay Rates</p>
           <p style={{ fontSize: 12, color: "#2D8A5E", lineHeight: 1.8 }}>Non-Peak ${cfg.op}/hr</p>
@@ -738,6 +743,8 @@ export default function BirdieGolfWebsite() {
           <p style={{ fontSize: 12, color: "#E8890C", lineHeight: 1.8, marginTop: 4 }}>Peak ${cfg.pk}/hr</p>
           <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 5pm–10pm</p>
         </div>
+        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Hours</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Mon–Fri 7am–10pm</p><p style={{ fontSize: 12, color: "#555" }}>Sat–Sun 9am–9pm</p></div>
+        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Location</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>45 NE 26th St., Unit C</p><p style={{ fontSize: 12, color: "#555" }}>Miami, FL 33137</p></div>
       </div>
 
       <h3 style={S.sh}>Contact</h3>
@@ -1228,7 +1235,291 @@ export default function BirdieGolfWebsite() {
       {!isMobile && <TopNav />}
       <div style={S.scroll}>{renderContent()}</div>
       {isMobile && <BottomNav />}
+      {/* ══ MANAGE BOOKING MODAL ══ */}
+      {manageBk && <ManageBookingModal
+        bk={manageBk}
+        onClose={() => setManageBk(null)}
+        customerId={customerId}
+        tier={tier}
+        bayCredits={bayCredits}
+        setBayCredits={setBayCredits}
+        cfg={cfg}
+        sb={sb}
+        square={square}
+        cards={cards}
+        fire={fire}
+        onRefresh={() => { if (customerId) { const today = new Date(); today.setHours(0,0,0,0); sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`).then(bks => { const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), }))); const allBks = sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled").then(a => { if (a?.length) setAllBookings(a); }); }); } }}
+        SUPABASE_KEY={SUPABASE_KEY}
+        SQUARE_FN_URL={SQUARE_FN_URL}
+        ff={ff}
+        mono={mono}
+      />}
       {toast && <div style={S.toast}>{toast}</div>}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MANAGE BOOKING MODAL — Edit / Cancel bay & lesson bookings
+   ═══════════════════════════════════════════════════════════ */
+
+function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayCredits, cfg, sb, square, cards, fire, onRefresh, SUPABASE_KEY, SQUARE_FN_URL, ff, mono }) {
+  const [view, setView] = React.useState("main"); // "main" | "edit" | "cancel"
+  const [newDur, setNewDur] = React.useState(bk.duration_slots || 2);
+  const [saving, setSaving] = React.useState(false);
+
+  const DUR_MAP = { "30m":1,"1h":2,"1.5h":3,"2h":4,"2.5h":5,"3h":6,"3.5h":7,"4h":8 };
+  const DUR_LABELS = ["30m","1h","1.5h","2h","2.5h","3h","3.5h","4h"];
+  const slotsToLabel = n => ({1:"30m",2:"1h",3:"1.5h",4:"2h",5:"2.5h",6:"3h",7:"3.5h",8:"4h"}[n]||"1h");
+  const toH = s => { const [t,ap]=s.split(" "); let [h,m]=t.split(":").map(Number); if(ap==="PM"&&h!==12)h+=12; if(ap==="AM"&&h===12)h=0; return h+m/60; };
+
+  // Is the booking within 24 hours of start?
+  const bkStart = new Date(bk.date + "T" + (() => {
+    const [t,ap] = (bk.start_time||"9:00 AM").split(" ");
+    let [h,m] = t.split(":").map(Number);
+    if (ap==="PM"&&h!==12) h+=12; if(ap==="AM"&&h===12) h=0;
+    return String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0") + ":00";
+  })());
+  const hoursUntil = (bkStart - new Date()) / 3600000;
+  const within24 = hoursUntil <= 24 && hoursUntil > 0;
+  const isPast = hoursUntil <= 0;
+
+  // Pricing helpers
+  const d = new Date(bk.date + "T12:00:00");
+  const isWk = d.getDay() === 0 || d.getDay() === 6;
+  const hour = toH(bk.start_time || "9:00 AM");
+  const isPeak = !isWk && hour >= 17;
+  const rate = isPeak ? cfg.pk : cfg.op;
+
+  const origHrs = (bk.duration_slots || 2) * 0.5;
+  const newHrs = newDur * 0.5;
+  const diffHrs = newHrs - origHrs;
+  const creditsUsedOnBooking = bk.credits_used || 0;
+  const isMember = tier && tier !== "none" && tier !== "starter";
+
+  // Cost to extend
+  const extendCost = diffHrs > 0 ? diffHrs * rate : 0;
+  const canCoverWithCredits = isMember && bayCredits >= diffHrs && diffHrs > 0;
+
+  /* ── Save edits ── */
+  const saveEdit = async () => {
+    if (newDur === (bk.duration_slots || 2)) { onClose(); return; }
+    setSaving(true);
+
+    if (diffHrs < 0 && within24) { fire("Cannot reduce time within 24hrs of booking"); setSaving(false); return; }
+
+    let creditsDeducted = 0;
+    let charged = 0;
+
+    if (diffHrs > 0) {
+      // Extending: charge difference
+      if (canCoverWithCredits && bk.useCreditsExtend) {
+        creditsDeducted = diffHrs;
+        await sb.patch("customers", `id=eq.${customerId}`, { bay_credits_remaining: Math.max(0, bayCredits - diffHrs) });
+        setBayCredits(c => Math.max(0, c - diffHrs));
+      } else if (extendCost > 0 && bk.square_payment_id) {
+        charged = extendCost;
+        const defaultCard = cards[0];
+        if (defaultCard?.square_card_id) {
+          await square("payment.create", { square_customer_id: bk.square_customer_id, card_id: defaultCard.square_card_id, amount: charged, note: `Bay extension · +${diffHrs}hr` });
+        }
+      }
+    }
+
+    await sb.patch("bookings", `id=eq.${bk.id}`, {
+      duration_slots: newDur,
+      credits_used: (bk.credits_used || 0) + creditsDeducted,
+      amount: (bk.amount || 0) + charged,
+    });
+
+    if (charged > 0 || creditsDeducted > 0) {
+      await sb.post("transactions", {
+        customer_id: customerId,
+        description: `Bay Booking Edit · Bay ${bk.bay} · ${diffHrs > 0 ? "+" : ""}${diffHrs}hr`,
+        date: new Date().toISOString().split("T")[0],
+        amount: charged,
+        payment_label: creditsDeducted > 0 ? "Credits" : "Card",
+      });
+    }
+
+    fire("Booking updated ✓");
+    setSaving(false); onClose(); onRefresh();
+  };
+
+  /* ── Cancel booking ── */
+  const cancelBooking = async (withRefund) => {
+    setSaving(true);
+    await sb.patch("bookings", `id=eq.${bk.id}`, { status: "cancelled", cancelled_at: new Date().toISOString() });
+
+    if (withRefund && !within24) {
+      if (creditsUsedOnBooking > 0 && isMember) {
+        await sb.patch("customers", `id=eq.${customerId}`, { bay_credits_remaining: bayCredits + creditsUsedOnBooking });
+        setBayCredits(c => c + creditsUsedOnBooking);
+        await sb.post("transactions", { customer_id: customerId, description: `Refund (credits) · Bay ${bk.bay}`, date: new Date().toISOString().split("T")[0], amount: 0, payment_label: "Credits" });
+        fire(`Cancelled · ${creditsUsedOnBooking} credits refunded`);
+      } else if (bk.square_payment_id) {
+        await square("payment.refund", { payment_id: bk.square_payment_id, amount: bk.amount || 0, reason: "Customer cancellation" });
+        await sb.post("transactions", { customer_id: customerId, description: `Refund · Bay ${bk.bay}`, date: new Date().toISOString().split("T")[0], amount: -(bk.amount || 0), payment_label: "Refund" });
+        fire("Cancelled · Refund issued");
+      } else {
+        fire("Booking cancelled");
+      }
+    } else if (bk.type === "lesson" && within24) {
+      // Lesson late cancel: charge bay rate for that hour
+      const lessonCancelFee = 1 * rate; // 1hr at bay rate
+      const defaultCard = cards[0];
+      if (defaultCard?.square_card_id) {
+        await square("payment.create", { card_id: defaultCard.square_card_id, amount: lessonCancelFee, note: `Late cancellation fee · Lesson ${bk.date}` });
+      }
+      await sb.post("transactions", { customer_id: customerId, description: `Late Cancellation Fee · Lesson`, date: new Date().toISOString().split("T")[0], amount: lessonCancelFee, payment_label: "Card" });
+      fire(`Cancelled · $${lessonCancelFee.toFixed(2)} late cancellation fee charged`);
+    } else {
+      fire("Booking cancelled");
+    }
+
+    setSaving(false); onClose(); onRefresh();
+  };
+
+  const GREEN="#2D8A5E", RED="#E03928", ORANGE="#E8890C", PURPLE="#5B6DCD";
+  const ov = { position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20 };
+  const mod = { background:"#fff",borderRadius:20,padding:24,maxWidth:440,width:"100%",maxHeight:"85vh",overflowY:"auto" };
+  const btn1 = { background:GREEN,color:"#fff",border:"none",borderRadius:12,padding:"12px 18px",fontSize:14,fontWeight:600,fontFamily:ff,cursor:"pointer",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8 };
+  const btn2 = { background:"#f0f0ee",color:"#1a1a1a",border:"none",borderRadius:12,padding:"12px 18px",fontSize:14,fontWeight:600,fontFamily:ff,cursor:"pointer",flex:1 };
+  const label = { fontSize:11,fontWeight:700,color:"#888",letterSpacing:1,marginBottom:6,display:"block" };
+  const togBtn = { padding:"7px 12px",border:"1px solid #e8e8e6",borderRadius:8,background:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:ff,color:"#555" };
+
+  const isLesson = bk.type === "lesson";
+  const accentColor = isLesson ? PURPLE : GREEN;
+
+  return (
+    <div style={ov} onClick={onClose}>
+      <div style={mod} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:16 }}>
+          <div style={{ width:40,height:40,borderRadius:10,background:accentColor+"14",color:accentColor,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:18 }}>
+            {isLesson ? "🎓" : "⛳"}
+          </div>
+          <div>
+            <h3 style={{ fontSize:16,fontWeight:700 }}>{bk.label}</h3>
+            <p style={{ fontSize:12,color:"#888" }}>{bk.sub}</p>
+          </div>
+        </div>
+
+        {isPast && (
+          <div style={{ background:"#f8f8f6",borderRadius:10,padding:12,marginBottom:16,textAlign:"center" }}>
+            <p style={{ fontSize:13,color:"#888" }}>This booking has already passed.</p>
+          </div>
+        )}
+
+        {!isPast && view === "main" && (
+          <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+            {!isLesson && (
+              <button style={{ ...btn1, background: accentColor }} onClick={() => setView("edit")}>
+                Edit Booking
+              </button>
+            )}
+            <button style={{ ...btn1, background: within24 ? "#888" : RED }} onClick={() => setView("cancel")}>
+              Cancel Booking
+            </button>
+            <button style={{ ...btn2, width:"100%" }} onClick={onClose}>Close</button>
+          </div>
+        )}
+
+        {/* ── Edit view (bay only) ── */}
+        {!isPast && view === "edit" && (
+          <div>
+            <label style={label}>ADJUST DURATION</label>
+            <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginBottom:14 }}>
+              {DUR_LABELS.map(d => {
+                const slots = DUR_MAP[d];
+                const sel = newDur === slots;
+                const isReduction = slots < (bk.duration_slots || 2);
+                const disabled = isReduction && within24;
+                return (
+                  <button key={d}
+                    style={{ ...togBtn, ...(sel ? { background:accentColor,color:"#fff",borderColor:accentColor } : {}), opacity: disabled ? 0.35 : 1, cursor: disabled ? "not-allowed" : "pointer" }}
+                    onClick={() => !disabled && setNewDur(slots)}
+                    disabled={disabled}
+                  >{d}</button>
+                );
+              })}
+            </div>
+
+            {within24 && <p style={{ fontSize:11,color:ORANGE,marginBottom:10 }}>⚠️ Cannot reduce time within 24hrs of booking start.</p>}
+
+            {diffHrs > 0 && (
+              <div style={{ background:accentColor+"10",border:`1px solid ${accentColor}33`,borderRadius:10,padding:12,marginBottom:14 }}>
+                <p style={{ fontSize:13,fontWeight:600,color:accentColor,marginBottom:4 }}>+{diffHrs}hr extension</p>
+                <p style={{ fontSize:12,color:"#555" }}>Additional charge: <strong>${extendCost.toFixed(2)}</strong> ({diffHrs}hr @ ${rate}/hr)</p>
+                {canCoverWithCredits && (
+                  <label style={{ display:"flex",alignItems:"center",gap:8,marginTop:8,cursor:"pointer" }}>
+                    <input type="checkbox" checked={!!bk.useCreditsExtend}
+                      onChange={() => { bk.useCreditsExtend = !bk.useCreditsExtend; setNewDur(p => p); }}
+                      style={{ accentColor }} />
+                    <span style={{ fontSize:12 }}>Use bay credits instead ({bayCredits} hrs available)</span>
+                  </label>
+                )}
+              </div>
+            )}
+
+            {diffHrs < 0 && (
+              <div style={{ background:"#f8f8f6",borderRadius:10,padding:12,marginBottom:14 }}>
+                <p style={{ fontSize:12,color:"#555" }}>Reducing by {Math.abs(diffHrs)}hr. No charge adjustment — no refund for reducing duration.</p>
+              </div>
+            )}
+
+            <div style={{ display:"flex",gap:8 }}>
+              <button style={{ ...btn1, flex:1, opacity: newDur !== (bk.duration_slots||2) ? 1 : 0.4 }} disabled={saving || newDur === (bk.duration_slots||2)} onClick={saveEdit}>
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+              <button style={{ ...btn2 }} onClick={() => setView("main")}>Back</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Cancel view ── */}
+        {!isPast && view === "cancel" && (
+          <div>
+            {within24 ? (
+              <div style={{ background:RED+"10",border:`1px solid ${RED}33`,borderRadius:10,padding:14,marginBottom:16 }}>
+                <p style={{ fontSize:13,fontWeight:700,color:RED,marginBottom:4 }}>Within 24-Hour Cancellation Window</p>
+                {isLesson ? (
+                  <p style={{ fontSize:12,color:"#555",lineHeight:1.5 }}>
+                    Cancelling a lesson within 24hrs incurs a <strong>${(rate).toFixed(2)}</strong> fee (1hr bay rate). No refund on lesson payment.
+                  </p>
+                ) : (
+                  <p style={{ fontSize:12,color:"#555",lineHeight:1.5 }}>
+                    Bay bookings cancelled within 24hrs are <strong>not eligible for a refund</strong>.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div style={{ background:"#f8f8f6",borderRadius:10,padding:14,marginBottom:16 }}>
+                <p style={{ fontSize:13,fontWeight:600,marginBottom:4 }}>More than 24hrs until booking</p>
+                <p style={{ fontSize:12,color:"#555",lineHeight:1.5 }}>
+                  You are eligible for a full refund
+                  {creditsUsedOnBooking > 0 ? ` of ${creditsUsedOnBooking} credit${creditsUsedOnBooking!==1?"s":""}` : bk.amount > 0 ? ` of $${(bk.amount||0).toFixed(2)}` : ""}.
+                </p>
+              </div>
+            )}
+
+            <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+              {within24 ? (
+                <button style={{ ...btn1, background: RED }} onClick={() => cancelBooking(false)} disabled={saving}>
+                  {saving ? "Processing..." : isLesson ? `Cancel + Pay $${rate.toFixed(2)} Fee` : "Cancel (No Refund)"}
+                </button>
+              ) : (
+                <button style={{ ...btn1, background: GREEN }} onClick={() => cancelBooking(true)} disabled={saving}>
+                  {saving ? "Processing..." : creditsUsedOnBooking > 0 ? `Cancel + Refund ${creditsUsedOnBooking} Credits` : `Cancel + Refund $${(bk.amount||0).toFixed(2)}`}
+                </button>
+              )}
+              <button style={{ ...btn2, width:"100%" }} onClick={() => setView("main")}>Back</button>
+            </div>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }
