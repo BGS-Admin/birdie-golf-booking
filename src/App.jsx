@@ -713,7 +713,7 @@ export default function BirdieGolfWebsite() {
         <div style={{ ...S.aboutCard, gridColumn: isDesktop ? "auto" : "1 / -1" }}>
           <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Bay Rates</p>
           <p style={{ fontSize: 12, color: "#2D8A5E", lineHeight: 1.8 }}>Non-Peak ${cfg.op}/hr</p>
-          <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 7am–5pm · Sat–Sun 9am–9pm</p>
+          <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 7am–5pm</p><p style={{ fontSize: 10, color: "#888" }}>Sat–Sun 9am–9pm</p>
           <p style={{ fontSize: 12, color: "#E8890C", lineHeight: 1.8, marginTop: 4 }}>Peak ${cfg.pk}/hr</p>
           <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 5pm–10pm</p>
         </div>
