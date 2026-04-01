@@ -143,10 +143,14 @@ function getAvailBays(dt, startSlot, durSlots, bayBlocks, realBookings) {
 
 function getAllTimes(dt, durSlots, bayBlocks, realBookings) {
   const hrs = getHours(dt), result = [];
+  const now = new Date();
+  const isToday = dt.toISOString().split("T")[0] === now.toISOString().split("T")[0];
+  const currentH = now.getHours() + now.getMinutes() / 60;
   for (let i = 0; i <= hrs.length - durSlots; i++) {
     const needed = hrs.slice(i, i + durSlots);
     const consecutive = needed.every((s, j) => j === 0 || toH(s) - toH(needed[j - 1]) === 0.5);
     if (!consecutive) continue;
+    if (isToday && toH(hrs[i]) <= currentH) { result.push({ time: hrs[i], open: false }); continue; }
     const anyBayFree = [1,2,3,4,5].some(bay => needed.every(s => !getBk(dt, s, realBookings).includes(bay) && !isBayBlocked(bay, dt, s, bayBlocks)));
     result.push({ time: hrs[i], open: anyBayFree });
   }
@@ -178,11 +182,15 @@ function lessonPrice(tier, hasCredits, creditCoachId, selCoach) {
 /* Lesson helpers */
 function getLessonTimes(dt, coachFilter, bayBlocks, realBookings) {
   const dn = dayName(dt), hrs = getHours(dt), times = new Set();
+  const now = new Date();
+  const isToday = dt.toISOString().split("T")[0] === now.toISOString().split("T")[0];
+  const currentH = now.getHours() + now.getMinutes() / 60;
   (coachFilter ? [coachFilter] : COACHES).forEach(c => {
     const avSlots = c.av[dn] || [];
     avSlots.forEach((s, si) => {
       const next = avSlots[si + 1];
       if (!next || toH(next) - toH(s) !== 0.5) return;
+      if (isToday && toH(s) <= currentH) return;
       if ([1,2,3,4,5].some(bay => [s, next].every(sl => !getBk(dt, sl, realBookings).includes(bay) && !isBayBlocked(bay, dt, sl, bayBlocks))) && hrs.includes(s)) times.add(s);
     });
   });
