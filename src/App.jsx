@@ -607,8 +607,13 @@ export default function BirdieGolfWebsite() {
       const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`);
       const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today);
       setUpcomingBk(upcoming.map(b => ({
-        id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
+        id: b.id, type: b.type,
+        label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
         sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
+        date: b.date, start_time: b.start_time, bay: b.bay,
+        duration_slots: b.duration_slots, credits_used: b.credits_used || 0,
+        amount: b.amount || 0, square_payment_id: b.square_payment_id || null,
+        square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "",
       })));
     }
     if (k === "book") resetBk();
@@ -796,7 +801,7 @@ export default function BirdieGolfWebsite() {
                 setUpcomingBk(p => [...p, { type: "bay", label: "Bay " + bkBay, sub: fmtDate(bkDate) + " · " + bkTime + " · " + durH + "hr" + (durH > 1 ? "s" : "") }]);
                 if (tier === "player" && price.credits > 0) setBayCredits(c => Math.max(0, c - price.credits));
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? bkDate.toISOString().split("T")[0] : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
-                if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), }))); }
+                if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
                 fire("Bay booked!"); resetBk(); setTab("home");
               }}>Confirm & Pay</button>
             </div>
@@ -923,7 +928,7 @@ export default function BirdieGolfWebsite() {
                 if (lp.credit) { setTotL(c => Math.max(0, c - 1)); setCreditUsage(p => [...p, { date: fmtDate(new Date()), desc: "Lesson with " + coach?.n }]); }
                 setLesHistory(p => [...p, { type: "lesson", desc: "Lesson with " + coach?.n, date: fmtDate(new Date()), amt: lp.credit ? "1 credit" : lp.label }]);
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bayAssigned, date: lesDate ? lesDate.toISOString().split("T")[0] : "", start_time: lesTime, duration_slots: 2, status: "confirmed", type: "lesson" }]);
-                if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), }))); }
+                if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
                 fire("Lesson booked!"); resetLes(); setTab("home");
               }}>Confirm & Book</button>
             </div>
@@ -1291,6 +1296,10 @@ export default function BirdieGolfWebsite() {
                 id: b.id, type: b.type,
                 label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
                 sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
+                date: b.date, start_time: b.start_time, bay: b.bay,
+                duration_slots: b.duration_slots, credits_used: b.credits_used || 0,
+                amount: b.amount || 0, square_payment_id: b.square_payment_id || null,
+                square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "",
               })));
             });
             sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled").then(a => { if (a?.length) setAllBookings(a); });
