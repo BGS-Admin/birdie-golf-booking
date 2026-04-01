@@ -1175,27 +1175,31 @@ export default function BirdieGolfWebsite() {
           {cards.length > 1 ? <button style={S.delCardBtn} onClick={() => { setCards(p => p.filter(x => x.id !== c.id)); fire("Card removed"); }}>{X.trash(14)}</button> : <span style={{ fontSize: 10, color: "#aaa", fontWeight: 600 }}>Required</span>}</div>)}
         {addCard ? <div style={{ marginTop: 12 }}>
           <input
-            style={S.profIn} placeholder="Card number" inputMode="numeric" pattern="[0-9 ]*"
-            value={newCard.num} maxLength={19}
+            style={S.profIn} placeholder="Card number" type="tel" maxLength={19}
+            value={newCard.num}
             onChange={e => {
               const v = e.target.value.replace(/\D/g,"").slice(0,16);
-              setNewCard(p => ({ ...p, num: v.match(/.{1,4}/g)?.join(" ") || v }));
+              const fmt = v.match(/.{1,4}/g)?.join(" ") || v;
+              if (fmt !== newCard.num) setNewCard(p => ({ ...p, num: fmt }));
             }}
           />
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <input
-              style={{ ...S.profIn, flex: 1 }} placeholder="MM/YY" inputMode="numeric" pattern="[0-9/]*" maxLength={5}
+              style={{ ...S.profIn, flex: 1 }} placeholder="MM/YY" type="tel" maxLength={5}
               value={newCard.exp}
               onChange={e => {
                 let v = e.target.value.replace(/\D/g,"").slice(0,4);
                 if (v.length > 2) v = v.slice(0,2) + "/" + v.slice(2);
-                setNewCard(p => ({ ...p, exp: v }));
+                if (v !== newCard.exp) setNewCard(p => ({ ...p, exp: v }));
               }}
             />
             <input
-              style={{ ...S.profIn, flex: 1 }} placeholder="CVC" inputMode="numeric" pattern="[0-9]*" maxLength={4}
+              style={{ ...S.profIn, flex: 1 }} placeholder="CVC" type="tel" maxLength={4}
               value={newCard.cvc}
-              onChange={e => setNewCard(p => ({ ...p, cvc: e.target.value.replace(/\D/g,"").slice(0,4) }))}
+              onChange={e => {
+                const v = e.target.value.replace(/\D/g,"").slice(0,4);
+                if (v !== newCard.cvc) setNewCard(p => ({ ...p, cvc: v }));
+              }}
             />
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}><button style={S.b2} onClick={() => { setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); }}>Cancel</button><button style={{ ...S.b1, flex: 2 }} onClick={async () => {
@@ -1408,7 +1412,10 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
       fire(`Lesson cancelled · $${lateFee.toFixed(2)} fee charged`);
 
     } else if (!within24) {
-      // Outside 24h window: full refund
+      // Outside 24h window: full refund — handle credits AND card simultaneously
+      const refundParts = [];
+
+      // Refund credits if any were used
       if (creditsUsed > 0 && isMember) {
         const newCredits = bayCredits + creditsUsed;
         await sb.patch("customers", `id=eq.${customerId}`, { bay_credits_remaining: newCredits });
@@ -1420,28 +1427,49 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
           amount: 0,
           payment_label: "Credits",
         });
-        refundDesc = `${creditsUsed} credit${creditsUsed !== 1 ? "s" : ""} refunded to your account.`;
-        fire(`Cancelled · ${creditsUsed} credit${creditsUsed !== 1 ? "s" : ""} refunded`);
-      } else if (bk.square_payment_id) {
+        refundParts.push(`${creditsUsed} credit${creditsUsed !== 1 ? "s" : ""} returned`);
+      }
+
+      // Refund card charge if any money was paid
+      if (bk.square_payment_id && bk.amount > 0) {
         await square("payment.refund", {
           payment_id: bk.square_payment_id,
-          amount: bk.amount || 0,
+          amount: bk.amount,
           reason: "Customer cancellation",
         });
         await sb.post("transactions", {
           customer_id: customerId,
           description: `Refund · ${isLesson ? "Lesson" : "Bay " + bk.bay}`,
           date: new Date().toISOString().split("T")[0],
-          amount: -(bk.amount || 0),
+          amount: -(bk.amount),
           payment_label: "Refund",
         });
-        refundDesc = `$${(bk.amount || 0).toFixed(2)} refunded to your card on file.`;
-        fire("Cancelled · Refund issued");
+        refundParts.push(`$${bk.amount.toFixed(2)} refunded to card`);
+      }
+
+      if (refundParts.length > 0) {
+        refundDesc = refundParts.join(" + ") + ".";
+        fire("Cancelled · " + refundParts.join(" + "));
       } else {
+        // No payment on file — still log cancellation
+        await sb.post("transactions", {
+          customer_id: customerId,
+          description: `Cancellation · ${isLesson ? "Lesson" : "Bay " + bk.bay}`,
+          date: new Date().toISOString().split("T")[0],
+          amount: 0,
+          payment_label: "N/A",
+        });
         fire("Booking cancelled");
       }
     } else {
-      // Bay within 24h: no refund
+      // Bay within 24h: no refund — still log cancellation
+      await sb.post("transactions", {
+        customer_id: customerId,
+        description: `Cancellation (no refund) · ${isLesson ? "Lesson" : "Bay " + bk.bay}`,
+        date: new Date().toISOString().split("T")[0],
+        amount: 0,
+        payment_label: "N/A",
+      });
       fire("Booking cancelled (no refund)");
     }
 
