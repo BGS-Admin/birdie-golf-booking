@@ -141,10 +141,16 @@ function getAvailBays(dt, startSlot, durSlots, bayBlocks, realBookings) {
   return [1,2,3,4,5].map(bay => ({ bay, ok: needed.every(s => !getBk(dt, s, realBookings).includes(bay) && !isBayBlocked(bay, dt, s, bayBlocks)) }));
 }
 
+function isSameLocalDay(a, b) {
+  return a.getFullYear() === b.getFullYear() &&
+         a.getMonth()    === b.getMonth()    &&
+         a.getDate()     === b.getDate();
+}
+
 function getAllTimes(dt, durSlots, bayBlocks, realBookings) {
   const hrs = getHours(dt), result = [];
   const now = new Date();
-  const isToday = dt.toISOString().split("T")[0] === now.toISOString().split("T")[0];
+  const isToday = isSameLocalDay(dt, now);
   const currentH = now.getHours() + now.getMinutes() / 60;
   for (let i = 0; i <= hrs.length - durSlots; i++) {
     const needed = hrs.slice(i, i + durSlots);
@@ -183,7 +189,7 @@ function lessonPrice(tier, hasCredits, creditCoachId, selCoach) {
 function getLessonTimes(dt, coachFilter, bayBlocks, realBookings) {
   const dn = dayName(dt), hrs = getHours(dt), times = new Set();
   const now = new Date();
-  const isToday = dt.toISOString().split("T")[0] === now.toISOString().split("T")[0];
+  const isToday = isSameLocalDay(dt, now);
   const currentH = now.getHours() + now.getMinutes() / 60;
   (coachFilter ? [coachFilter] : COACHES).forEach(c => {
     const avSlots = c.av[dn] || [];
@@ -860,7 +866,7 @@ export default function BirdieGolfWebsite() {
       })()}
       {bkDate && bkDur && bkTime && bkBay && <button style={{ ...S.b1, marginTop: 14 }} onClick={() => {
         const now = new Date();
-        const isToday = bkDate && dateKey(bkDate) === dateKey(now);
+        const isToday = bkDate && isSameLocalDay(bkDate, now);
         const currentH = now.getHours() + now.getMinutes() / 60;
         if (isToday && bkTime && toH(bkTime) <= currentH) { fire("That time slot has passed — please select a new time."); setBkTime(null); setBkBay(null); return; }
         setBkStep(1);
@@ -975,7 +981,7 @@ export default function BirdieGolfWebsite() {
         })()}
         {lesDate && lesTime && lesCoach && <button style={{ ...S.b1, marginTop: 12, background: "#5B6DCD" }} onClick={() => {
           const now = new Date();
-          const isToday = lesDate && dateKey(lesDate) === dateKey(now);
+          const isToday = lesDate && isSameLocalDay(lesDate, now);
           const currentH = now.getHours() + now.getMinutes() / 60;
           if (isToday && lesTime && toH(lesTime) <= currentH) { fire("That time slot has passed — please select a new time."); setLesTime(null); setLesCoach(null); return; }
           setLesStep(1);
