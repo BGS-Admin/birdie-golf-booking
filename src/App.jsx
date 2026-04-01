@@ -744,7 +744,12 @@ export default function BirdieGolfWebsite() {
           <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 5pm–10pm</p>
         </div>
         <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Hours</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Mon–Fri 7am–10pm</p><p style={{ fontSize: 12, color: "#555" }}>Sat–Sun 9am–9pm</p></div>
-        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Location</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>45 NE 26th St., Unit C</p><p style={{ fontSize: 12, color: "#555" }}>Miami, FL 33137</p></div>
+        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Location</p>
+          <a href="https://maps.apple.com/?q=45+NE+26th+St+Miami+FL+33137" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+            <p style={{ fontSize: 12, color: "#2D8A5E", lineHeight: 1.6 }}>45 NE 26th St., Unit C</p>
+            <p style={{ fontSize: 12, color: "#2D8A5E" }}>Miami, FL 33137</p>
+          </a>
+        </div>
       </div>
 
       <h3 style={S.sh}>Contact</h3>
@@ -903,8 +908,11 @@ export default function BirdieGolfWebsite() {
           <div>
             <div style={S.polBox}>
               <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Cancellation Policy</p>
-              <p style={{ fontSize: 12, color: "#8B6914", lineHeight: 1.5, marginBottom: 12 }}>Late cancellation (within 24 hrs): ${cancelFee} fee. Credits not restored.</p>
-              <label style={S.chkRow}><input type="checkbox" checked={lesAgree} onChange={() => setLesAgree(!lesAgree)} style={{ marginRight: 8, accentColor: "#5B6DCD" }} /><span style={{ fontSize: 12 }}>I agree to the cancellation policy</span></label>
+              <div style={{ fontSize: 12, color: "#8B6914", lineHeight: 1.6, marginBottom: 12 }}>
+                <p style={{ marginBottom: 6 }}><strong>Within 24 hours or no-show:</strong> No refund. You will be charged the bay rental cost for that hour (${slotRate(lesDate, lesTime, cfg).toFixed(2)}).</p>
+                <p><strong>More than 24 hours in advance:</strong> Full refund — lesson credits returned to your account, or refund to your credit card on file.</p>
+              </div>
+              <label style={S.chkRow}><input type="checkbox" checked={lesAgree} onChange={() => setLesAgree(!lesAgree)} style={{ marginRight: 8, accentColor: "#5B6DCD" }} /><span style={{ fontSize: 12 }}>I have read and agree to the cancellation policy</span></label>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
               <button style={S.b2} onClick={() => setLesStep(0)}>Back</button>
@@ -1153,7 +1161,7 @@ export default function BirdieGolfWebsite() {
     <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>Profile</h2>
     <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
       <div style={S.sec}><h4 style={S.secL}>Personal Information</h4>
-        {[{ l: "First Name", v: onbF }, { l: "Last Name", v: onbL }, { l: "Phone", v: profPhone || ("+1 " + ph.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")), edit: "phone" }, { l: "Email", v: profEmail || onbE, edit: "email" }].map(f =>
+        {[{ l: "First Name", v: onbF }, { l: "Last Name", v: onbL }, { l: "Phone", v: profPhone ? ("+1 " + profPhone.replace(/\D/g,"").replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")) : ("+1 " + ph.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")), edit: "phone" }, { l: "Email", v: profEmail || onbE, edit: "email" }].map(f =>
           <div key={f.l} style={S.fRow}><div style={{ flex: 1 }}><p style={S.fL}>{f.l}</p><p style={S.fV}>{f.v}</p></div>
             {f.edit && <button style={S.editBtn} onClick={() => setEditModal({ type: f.edit, val: "", step: "edit", otp: ["","","","","",""] })}>{X.edit(14)}</button>}</div>)}
       </div>
@@ -1161,8 +1169,30 @@ export default function BirdieGolfWebsite() {
         {cards.map(c => <div key={c.id} style={S.fRow}><div style={{ flex: 1 }}><p style={{ fontSize: 14, fontWeight: 600 }}>{c.brand} ····{c.last4}</p><p style={{ fontSize: 11, color: "#888" }}>Exp {c.exp}</p></div>
           {cards.length > 1 ? <button style={S.delCardBtn} onClick={() => { setCards(p => p.filter(x => x.id !== c.id)); fire("Card removed"); }}>{X.trash(14)}</button> : <span style={{ fontSize: 10, color: "#aaa", fontWeight: 600 }}>Required</span>}</div>)}
         {addCard ? <div style={{ marginTop: 12 }}>
-          <input style={S.profIn} placeholder="Card number" value={newCard.num} onChange={e => setNewCard(p => ({ ...p, num: e.target.value }))} />
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}><input style={{ ...S.profIn, flex: 1 }} placeholder="MM/YY" value={newCard.exp} onChange={e => setNewCard(p => ({ ...p, exp: e.target.value }))} /><input style={{ ...S.profIn, flex: 1 }} placeholder="CVC" value={newCard.cvc} onChange={e => setNewCard(p => ({ ...p, cvc: e.target.value }))} /></div>
+          <input
+            style={S.profIn} placeholder="Card number" inputMode="numeric" pattern="[0-9 ]*"
+            value={newCard.num} maxLength={19}
+            onChange={e => {
+              const v = e.target.value.replace(/\D/g,"").slice(0,16);
+              setNewCard(p => ({ ...p, num: v.match(/.{1,4}/g)?.join(" ") || v }));
+            }}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <input
+              style={{ ...S.profIn, flex: 1 }} placeholder="MM/YY" inputMode="numeric" pattern="[0-9/]*" maxLength={5}
+              value={newCard.exp}
+              onChange={e => {
+                let v = e.target.value.replace(/\D/g,"").slice(0,4);
+                if (v.length > 2) v = v.slice(0,2) + "/" + v.slice(2);
+                setNewCard(p => ({ ...p, exp: v }));
+              }}
+            />
+            <input
+              style={{ ...S.profIn, flex: 1 }} placeholder="CVC" inputMode="numeric" pattern="[0-9]*" maxLength={4}
+              value={newCard.cvc}
+              onChange={e => setNewCard(p => ({ ...p, cvc: e.target.value.replace(/\D/g,"").slice(0,4) }))}
+            />
+          </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}><button style={S.b2} onClick={() => { setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); }}>Cancel</button><button style={{ ...S.b1, flex: 2 }} onClick={async () => {
             const rawNum = newCard.num.replace(/\D/g, "");
             const rawExp = newCard.exp.replace(/\D/g, "");
@@ -1248,7 +1278,24 @@ export default function BirdieGolfWebsite() {
         square={square}
         cards={cards}
         fire={fire}
-        onRefresh={() => { if (customerId) { const today = new Date(); today.setHours(0,0,0,0); sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`).then(bks => { const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), }))); const allBks = sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled").then(a => { if (a?.length) setAllBookings(a); }); }); } }}
+        profEmail={profEmail}
+        onbE={onbE}
+        onbF={onbF}
+        onbL={onbL}
+        onRefresh={() => {
+          if (customerId) {
+            const today = new Date(); today.setHours(0,0,0,0);
+            sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`).then(bks => {
+              const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today);
+              setUpcomingBk(upcoming.map(b => ({
+                id: b.id, type: b.type,
+                label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
+                sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
+              })));
+            });
+            sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled").then(a => { if (a?.length) setAllBookings(a); });
+          }
+        }}
         SUPABASE_KEY={SUPABASE_KEY}
         SQUARE_FN_URL={SQUARE_FN_URL}
         ff={ff}
@@ -1260,141 +1307,153 @@ export default function BirdieGolfWebsite() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MANAGE BOOKING MODAL — Edit / Cancel bay & lesson bookings
+   MANAGE BOOKING MODAL — Cancel bay & lesson bookings
    ═══════════════════════════════════════════════════════════ */
 
-function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayCredits, cfg, sb, square, cards, fire, onRefresh, SUPABASE_KEY, SQUARE_FN_URL, ff, mono }) {
-  const [view, setView] = React.useState("main"); // "main" | "edit" | "cancel"
-  const [newDur, setNewDur] = React.useState(bk.duration_slots || 2);
+function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayCredits, cfg, sb, square, cards, fire, onRefresh, SUPABASE_KEY, SQUARE_FN_URL, ff, mono, profEmail, onbE, onbF, onbL }) {
   const [saving, setSaving] = React.useState(false);
 
-  const DUR_MAP = { "30m":1,"1h":2,"1.5h":3,"2h":4,"2.5h":5,"3h":6,"3.5h":7,"4h":8 };
-  const DUR_LABELS = ["30m","1h","1.5h","2h","2.5h","3h","3.5h","4h"];
-  const slotsToLabel = n => ({1:"30m",2:"1h",3:"1.5h",4:"2h",5:"2.5h",6:"3h",7:"3.5h",8:"4h"}[n]||"1h");
   const toH = s => { const [t,ap]=s.split(" "); let [h,m]=t.split(":").map(Number); if(ap==="PM"&&h!==12)h+=12; if(ap==="AM"&&h===12)h=0; return h+m/60; };
 
-  // Is the booking within 24 hours of start?
-  const bkStart = new Date(bk.date + "T" + (() => {
+  // Parse booking start time into a proper local Date
+  const bkStart = (() => {
     const [t,ap] = (bk.start_time||"9:00 AM").split(" ");
     let [h,m] = t.split(":").map(Number);
-    if (ap==="PM"&&h!==12) h+=12; if(ap==="AM"&&h===12) h=0;
-    return String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0") + ":00";
-  })());
-  const hoursUntil = (bkStart - new Date()) / 3600000;
-  const within24 = hoursUntil <= 24 && hoursUntil > 0;
-  const isPast = hoursUntil <= 0;
+    if(ap==="PM"&&h!==12) h+=12; if(ap==="AM"&&h===12) h=0;
+    const d = new Date(bk.date + "T00:00:00");
+    d.setHours(h, m, 0, 0);
+    return d;
+  })();
 
-  // Pricing helpers
-  const d = new Date(bk.date + "T12:00:00");
+  const hoursUntil = (bkStart - new Date()) / 3600000;
+  const within24   = hoursUntil <= 24 && hoursUntil > 0;
+  const isPast     = hoursUntil <= 0;
+
+  // Rate for this booking slot
+  const d    = new Date(bk.date + "T12:00:00");
   const isWk = d.getDay() === 0 || d.getDay() === 6;
   const hour = toH(bk.start_time || "9:00 AM");
   const isPeak = !isWk && hour >= 17;
   const rate = isPeak ? cfg.pk : cfg.op;
 
-  const origHrs = (bk.duration_slots || 2) * 0.5;
-  const newHrs = newDur * 0.5;
-  const diffHrs = newHrs - origHrs;
-  const creditsUsedOnBooking = bk.credits_used || 0;
-  const isMember = tier && tier !== "none" && tier !== "starter";
+  const creditsUsed = bk.credits_used || 0;
+  const isMember    = tier && tier !== "none" && tier !== "starter";
+  const isLesson    = bk.type === "lesson";
+  const lateFee     = rate; // 1hr bay rate for lesson late cancel
 
-  // Cost to extend
-  const extendCost = diffHrs > 0 ? diffHrs * rate : 0;
-  const canCoverWithCredits = isMember && bayCredits >= diffHrs && diffHrs > 0;
-
-  /* ── Save edits ── */
-  const saveEdit = async () => {
-    if (newDur === (bk.duration_slots || 2)) { onClose(); return; }
-    setSaving(true);
-
-    if (diffHrs < 0 && within24) { fire("Cannot reduce time within 24hrs of booking"); setSaving(false); return; }
-
-    let creditsDeducted = 0;
-    let charged = 0;
-
-    if (diffHrs > 0) {
-      // Extending: charge difference
-      if (canCoverWithCredits && bk.useCreditsExtend) {
-        creditsDeducted = diffHrs;
-        await sb.patch("customers", `id=eq.${customerId}`, { bay_credits_remaining: Math.max(0, bayCredits - diffHrs) });
-        setBayCredits(c => Math.max(0, c - diffHrs));
-      } else if (extendCost > 0 && bk.square_payment_id) {
-        charged = extendCost;
-        const defaultCard = cards[0];
-        if (defaultCard?.square_card_id) {
-          await square("payment.create", { square_customer_id: bk.square_customer_id, card_id: defaultCard.square_card_id, amount: charged, note: `Bay extension · +${diffHrs}hr` });
-        }
-      }
-    }
-
-    await sb.patch("bookings", `id=eq.${bk.id}`, {
-      duration_slots: newDur,
-      credits_used: (bk.credits_used || 0) + creditsDeducted,
-      amount: (bk.amount || 0) + charged,
-    });
-
-    if (charged > 0 || creditsDeducted > 0) {
-      await sb.post("transactions", {
-        customer_id: customerId,
-        description: `Bay Booking Edit · Bay ${bk.bay} · ${diffHrs > 0 ? "+" : ""}${diffHrs}hr`,
-        date: new Date().toISOString().split("T")[0],
-        amount: charged,
-        payment_label: creditsDeducted > 0 ? "Credits" : "Card",
+  // Send cancellation email
+  const sendCancelEmail = async (refundDesc) => {
+    try {
+      await fetch(SQUARE_FN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
+        body: JSON.stringify({
+          action: "email.send",
+          type: "cancellation",
+          customer_name: (onbF + " " + onbL).trim(),
+          customer_email: profEmail || onbE,
+          booking_type: isLesson ? "Lesson" : "Bay Booking",
+          date: bk.date,
+          time: bk.start_time,
+          bay: bk.bay ? "Bay " + bk.bay : "",
+          refund_info: refundDesc,
+        }),
       });
-    }
-
-    fire("Booking updated ✓");
-    setSaving(false); onClose(); onRefresh();
+    } catch(e) { console.warn("Cancel email failed", e); }
   };
 
   /* ── Cancel booking ── */
-  const cancelBooking = async (withRefund) => {
+  const cancelBooking = async () => {
     setSaving(true);
-    await sb.patch("bookings", `id=eq.${bk.id}`, { status: "cancelled", cancelled_at: new Date().toISOString() });
 
-    if (withRefund && !within24) {
-      if (creditsUsedOnBooking > 0 && isMember) {
-        await sb.patch("customers", `id=eq.${customerId}`, { bay_credits_remaining: bayCredits + creditsUsedOnBooking });
-        setBayCredits(c => c + creditsUsedOnBooking);
-        await sb.post("transactions", { customer_id: customerId, description: `Refund (credits) · Bay ${bk.bay}`, date: new Date().toISOString().split("T")[0], amount: 0, payment_label: "Credits" });
-        fire(`Cancelled · ${creditsUsedOnBooking} credits refunded`);
+    // 1. Mark booking cancelled — this immediately frees the bay
+    await sb.patch("bookings", `id=eq.${bk.id}`, {
+      status: "cancelled",
+      cancelled_at: new Date().toISOString(),
+    });
+
+    let refundDesc = "No refund (within 24-hour cancellation window).";
+
+    if (within24 && isLesson) {
+      // Lesson within 24h: charge late fee
+      const defaultCard = cards[0];
+      let sqPaymentId = null;
+      if (defaultCard?.square_card_id && bk.square_customer_id) {
+        const payment = await square("payment.create", {
+          square_customer_id: bk.square_customer_id,
+          card_id: defaultCard.square_card_id,
+          amount: lateFee,
+          note: `Late cancellation fee · Lesson ${bk.date}`,
+        });
+        sqPaymentId = payment?.payment?.id || null;
+      }
+      await sb.post("transactions", {
+        customer_id: customerId,
+        description: `Late Cancellation Fee · Lesson`,
+        date: new Date().toISOString().split("T")[0],
+        amount: lateFee,
+        payment_label: "Card",
+        square_payment_id: sqPaymentId,
+      });
+      refundDesc = `Late cancellation fee of $${lateFee.toFixed(2)} charged.`;
+      fire(`Lesson cancelled · $${lateFee.toFixed(2)} fee charged`);
+
+    } else if (!within24) {
+      // Outside 24h window: full refund
+      if (creditsUsed > 0 && isMember) {
+        const newCredits = bayCredits + creditsUsed;
+        await sb.patch("customers", `id=eq.${customerId}`, { bay_credits_remaining: newCredits });
+        setBayCredits(newCredits);
+        await sb.post("transactions", {
+          customer_id: customerId,
+          description: `Refund (credits) · ${isLesson ? "Lesson" : "Bay " + bk.bay}`,
+          date: new Date().toISOString().split("T")[0],
+          amount: 0,
+          payment_label: "Credits",
+        });
+        refundDesc = `${creditsUsed} credit${creditsUsed !== 1 ? "s" : ""} refunded to your account.`;
+        fire(`Cancelled · ${creditsUsed} credit${creditsUsed !== 1 ? "s" : ""} refunded`);
       } else if (bk.square_payment_id) {
-        await square("payment.refund", { payment_id: bk.square_payment_id, amount: bk.amount || 0, reason: "Customer cancellation" });
-        await sb.post("transactions", { customer_id: customerId, description: `Refund · Bay ${bk.bay}`, date: new Date().toISOString().split("T")[0], amount: -(bk.amount || 0), payment_label: "Refund" });
+        await square("payment.refund", {
+          payment_id: bk.square_payment_id,
+          amount: bk.amount || 0,
+          reason: "Customer cancellation",
+        });
+        await sb.post("transactions", {
+          customer_id: customerId,
+          description: `Refund · ${isLesson ? "Lesson" : "Bay " + bk.bay}`,
+          date: new Date().toISOString().split("T")[0],
+          amount: -(bk.amount || 0),
+          payment_label: "Refund",
+        });
+        refundDesc = `$${(bk.amount || 0).toFixed(2)} refunded to your card on file.`;
         fire("Cancelled · Refund issued");
       } else {
         fire("Booking cancelled");
       }
-    } else if (bk.type === "lesson" && within24) {
-      // Lesson late cancel: charge bay rate for that hour
-      const lessonCancelFee = 1 * rate; // 1hr at bay rate
-      const defaultCard = cards[0];
-      if (defaultCard?.square_card_id) {
-        await square("payment.create", { card_id: defaultCard.square_card_id, amount: lessonCancelFee, note: `Late cancellation fee · Lesson ${bk.date}` });
-      }
-      await sb.post("transactions", { customer_id: customerId, description: `Late Cancellation Fee · Lesson`, date: new Date().toISOString().split("T")[0], amount: lessonCancelFee, payment_label: "Card" });
-      fire(`Cancelled · $${lessonCancelFee.toFixed(2)} late cancellation fee charged`);
     } else {
-      fire("Booking cancelled");
+      // Bay within 24h: no refund
+      fire("Booking cancelled (no refund)");
     }
 
-    setSaving(false); onClose(); onRefresh();
+    // Send cancellation confirmation email
+    await sendCancelEmail(refundDesc);
+
+    setSaving(false);
+    onClose();
+    onRefresh();
   };
 
   const GREEN="#2D8A5E", RED="#E03928", ORANGE="#E8890C", PURPLE="#5B6DCD";
-  const ov = { position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20 };
-  const mod = { background:"#fff",borderRadius:20,padding:24,maxWidth:440,width:"100%",maxHeight:"85vh",overflowY:"auto" };
-  const btn1 = { background:GREEN,color:"#fff",border:"none",borderRadius:12,padding:"12px 18px",fontSize:14,fontWeight:600,fontFamily:ff,cursor:"pointer",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8 };
-  const btn2 = { background:"#f0f0ee",color:"#1a1a1a",border:"none",borderRadius:12,padding:"12px 18px",fontSize:14,fontWeight:600,fontFamily:ff,cursor:"pointer",flex:1 };
-  const label = { fontSize:11,fontWeight:700,color:"#888",letterSpacing:1,marginBottom:6,display:"block" };
-  const togBtn = { padding:"7px 12px",border:"1px solid #e8e8e6",borderRadius:8,background:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:ff,color:"#555" };
-
-  const isLesson = bk.type === "lesson";
   const accentColor = isLesson ? PURPLE : GREEN;
+  const ov  = { position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20 };
+  const mod = { background:"#fff",borderRadius:20,padding:24,maxWidth:420,width:"100%",maxHeight:"85vh",overflowY:"auto" };
+  const btn1 = c => ({ background:c,color:"#fff",border:"none",borderRadius:12,padding:"13px 18px",fontSize:14,fontWeight:600,fontFamily:ff,cursor:"pointer",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8 });
+  const btn2 = { background:"#f0f0ee",color:"#1a1a1a",border:"none",borderRadius:12,padding:"13px 18px",fontSize:14,fontWeight:600,fontFamily:ff,cursor:"pointer",width:"100%",marginTop:8 };
 
   return (
     <div style={ov} onClick={onClose}>
       <div style={mod} onClick={e => e.stopPropagation()}>
-
         {/* Header */}
         <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:16 }}>
           <div style={{ width:40,height:40,borderRadius:10,background:accentColor+"14",color:accentColor,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:18 }}>
@@ -1406,119 +1465,46 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
           </div>
         </div>
 
-        {isPast && (
-          <div style={{ background:"#f8f8f6",borderRadius:10,padding:12,marginBottom:16,textAlign:"center" }}>
+        {isPast ? (
+          <div style={{ background:"#f8f8f6",borderRadius:10,padding:14,marginBottom:16,textAlign:"center" }}>
             <p style={{ fontSize:13,color:"#888" }}>This booking has already passed.</p>
           </div>
-        )}
-
-        {!isPast && view === "main" && (
-          <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-            {!isLesson && (
-              <button style={{ ...btn1, background: accentColor }} onClick={() => setView("edit")}>
-                Edit Booking
-              </button>
-            )}
-            <button style={{ ...btn1, background: within24 ? "#888" : RED }} onClick={() => setView("cancel")}>
-              Cancel Booking
-            </button>
-            <button style={{ ...btn2, width:"100%" }} onClick={onClose}>Close</button>
-          </div>
-        )}
-
-        {/* ── Edit view (bay only) ── */}
-        {!isPast && view === "edit" && (
-          <div>
-            <label style={label}>ADJUST DURATION</label>
-            <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginBottom:14 }}>
-              {DUR_LABELS.map(d => {
-                const slots = DUR_MAP[d];
-                const sel = newDur === slots;
-                const isReduction = slots < (bk.duration_slots || 2);
-                const disabled = isReduction && within24;
-                return (
-                  <button key={d}
-                    style={{ ...togBtn, ...(sel ? { background:accentColor,color:"#fff",borderColor:accentColor } : {}), opacity: disabled ? 0.35 : 1, cursor: disabled ? "not-allowed" : "pointer" }}
-                    onClick={() => !disabled && setNewDur(slots)}
-                    disabled={disabled}
-                  >{d}</button>
-                );
-              })}
-            </div>
-
-            {within24 && <p style={{ fontSize:11,color:ORANGE,marginBottom:10 }}>⚠️ Cannot reduce time within 24hrs of booking start.</p>}
-
-            {diffHrs > 0 && (
-              <div style={{ background:accentColor+"10",border:`1px solid ${accentColor}33`,borderRadius:10,padding:12,marginBottom:14 }}>
-                <p style={{ fontSize:13,fontWeight:600,color:accentColor,marginBottom:4 }}>+{diffHrs}hr extension</p>
-                <p style={{ fontSize:12,color:"#555" }}>Additional charge: <strong>${extendCost.toFixed(2)}</strong> ({diffHrs}hr @ ${rate}/hr)</p>
-                {canCoverWithCredits && (
-                  <label style={{ display:"flex",alignItems:"center",gap:8,marginTop:8,cursor:"pointer" }}>
-                    <input type="checkbox" checked={!!bk.useCreditsExtend}
-                      onChange={() => { bk.useCreditsExtend = !bk.useCreditsExtend; setNewDur(p => p); }}
-                      style={{ accentColor }} />
-                    <span style={{ fontSize:12 }}>Use bay credits instead ({bayCredits} hrs available)</span>
-                  </label>
-                )}
-              </div>
-            )}
-
-            {diffHrs < 0 && (
-              <div style={{ background:"#f8f8f6",borderRadius:10,padding:12,marginBottom:14 }}>
-                <p style={{ fontSize:12,color:"#555" }}>Reducing by {Math.abs(diffHrs)}hr. No charge adjustment — no refund for reducing duration.</p>
-              </div>
-            )}
-
-            <div style={{ display:"flex",gap:8 }}>
-              <button style={{ ...btn1, flex:1, opacity: newDur !== (bk.duration_slots||2) ? 1 : 0.4 }} disabled={saving || newDur === (bk.duration_slots||2)} onClick={saveEdit}>
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-              <button style={{ ...btn2 }} onClick={() => setView("main")}>Back</button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Cancel view ── */}
-        {!isPast && view === "cancel" && (
-          <div>
-            {within24 ? (
-              <div style={{ background:RED+"10",border:`1px solid ${RED}33`,borderRadius:10,padding:14,marginBottom:16 }}>
-                <p style={{ fontSize:13,fontWeight:700,color:RED,marginBottom:4 }}>Within 24-Hour Cancellation Window</p>
-                {isLesson ? (
-                  <p style={{ fontSize:12,color:"#555",lineHeight:1.5 }}>
-                    Cancelling a lesson within 24hrs incurs a <strong>${(rate).toFixed(2)}</strong> fee (1hr bay rate). No refund on lesson payment.
-                  </p>
-                ) : (
-                  <p style={{ fontSize:12,color:"#555",lineHeight:1.5 }}>
-                    Bay bookings cancelled within 24hrs are <strong>not eligible for a refund</strong>.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div style={{ background:"#f8f8f6",borderRadius:10,padding:14,marginBottom:16 }}>
-                <p style={{ fontSize:13,fontWeight:600,marginBottom:4 }}>More than 24hrs until booking</p>
-                <p style={{ fontSize:12,color:"#555",lineHeight:1.5 }}>
-                  You are eligible for a full refund
-                  {creditsUsedOnBooking > 0 ? ` of ${creditsUsedOnBooking} credit${creditsUsedOnBooking!==1?"s":""}` : bk.amount > 0 ? ` of $${(bk.amount||0).toFixed(2)}` : ""}.
-                </p>
-              </div>
-            )}
-
-            <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+        ) : (
+          <>
+            {/* Policy message */}
+            <div style={{ background: within24 ? RED+"08" : GREEN+"08", border:`1px solid ${within24 ? RED : GREEN}22`, borderRadius:10,padding:14,marginBottom:18 }}>
               {within24 ? (
-                <button style={{ ...btn1, background: RED }} onClick={() => cancelBooking(false)} disabled={saving}>
-                  {saving ? "Processing..." : isLesson ? `Cancel + Pay $${rate.toFixed(2)} Fee` : "Cancel (No Refund)"}
-                </button>
+                isLesson ? (
+                  <>
+                    <p style={{ fontSize:13,fontWeight:700,color:RED,marginBottom:6 }}>Within 24-Hour Window</p>
+                    <p style={{ fontSize:12,color:"#555",lineHeight:1.6 }}>Per our cancellation policy, cancelling within 24 hours of your lesson will incur a <strong>${lateFee.toFixed(2)}</strong> fee (the cost of renting the bay during your reserved hour). No refund on the lesson payment.</p>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ fontSize:13,fontWeight:700,color:RED,marginBottom:6 }}>Within 24-Hour Window</p>
+                    <p style={{ fontSize:12,color:"#555",lineHeight:1.6 }}>Per company cancellation policy, customers are not entitled to a refund if cancelling within 24-hours of booking start time.</p>
+                  </>
+                )
               ) : (
-                <button style={{ ...btn1, background: GREEN }} onClick={() => cancelBooking(true)} disabled={saving}>
-                  {saving ? "Processing..." : creditsUsedOnBooking > 0 ? `Cancel + Refund ${creditsUsedOnBooking} Credits` : `Cancel + Refund $${(bk.amount||0).toFixed(2)}`}
-                </button>
+                <>
+                  <p style={{ fontSize:13,fontWeight:700,color:GREEN,marginBottom:6 }}>More Than 24 Hours Away</p>
+                  <p style={{ fontSize:12,color:"#555",lineHeight:1.6 }}>
+                    You are eligible for a full refund to your original method of payment.
+                    {creditsUsed > 0 && isMember
+                      ? ` If you used credits, you will receive the full amount of ${creditsUsed} credit${creditsUsed!==1?"s":""} back.`
+                      : ""}
+                  </p>
+                </>
               )}
-              <button style={{ ...btn2, width:"100%" }} onClick={() => setView("main")}>Back</button>
             </div>
-          </div>
+
+            <button style={btn1(RED)} onClick={cancelBooking} disabled={saving}>
+              {saving ? "Processing..." : "Cancel"}
+            </button>
+          </>
         )}
 
+        <button style={btn2} onClick={onClose}>Keep Booking</button>
       </div>
     </div>
   );
