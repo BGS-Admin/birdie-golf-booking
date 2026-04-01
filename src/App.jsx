@@ -826,10 +826,9 @@ export default function BirdieGolfWebsite() {
         <div style={{ ...S.timeGrid, gridTemplateColumns: isDesktop ? "repeat(6, 1fr)" : "repeat(4, 1fr)" }}>
           {getAllTimes(bkDate, bkDur, bayBlocks, allBookings).map(({ time: t, open }) => {
             const sel = bkTime === t, pk = isPeak(bkDate, t), wk = isWeekend(bkDate);
-            return <button key={t} style={{ ...S.timeBtn, ...(sel ? S.timeSel : {}), ...(!open ? { opacity: 0.35, cursor: "not-allowed" } : {}), borderColor: sel ? "#2D8A5E" : !open ? "#e8e8e6" : pk ? "#E8890C" : wk ? "#5B6DCD" : "#e8e8e6" }}
+            return <button key={t} style={{ ...S.timeBtn, ...(sel ? S.timeSel : {}), ...(!open ? { opacity: 0.35, cursor: "not-allowed" } : {}) }}
               onClick={() => { if (open) { setBkTime(t); setBkBay(null); } }} disabled={!open}>
               <span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : !open ? "#ccc" : "#1a1a1a" }}>{t}</span>
-              {open && pk && <span style={{ fontSize: 8, fontWeight: 700, color: sel ? "#fff" : "#E8890C" }}>PEAK</span>}
               {!open && <span style={{ fontSize: 8, fontWeight: 700, color: "#ccc" }}>FULL</span>}
             </button>;
           })}
@@ -859,7 +858,13 @@ export default function BirdieGolfWebsite() {
           {price.disc > 0 && <p style={{ fontSize: 11, color: "#2D8A5E", marginTop: 2 }}>Member discount: -${price.disc.toFixed(2)}</p>}
         </div>;
       })()}
-      {bkDate && bkDur && bkTime && bkBay && <button style={{ ...S.b1, marginTop: 14 }} onClick={() => setBkStep(1)}>Continue to Confirm</button>}
+      {bkDate && bkDur && bkTime && bkBay && <button style={{ ...S.b1, marginTop: 14 }} onClick={() => {
+        const now = new Date();
+        const isToday = bkDate && dateKey(bkDate) === dateKey(now);
+        const currentH = now.getHours() + now.getMinutes() / 60;
+        if (isToday && bkTime && toH(bkTime) <= currentH) { fire("That time slot has passed — please select a new time."); setBkTime(null); setBkBay(null); return; }
+        setBkStep(1);
+      }}>Continue to Confirm</button>}
     </>;
   };
 
@@ -968,7 +973,13 @@ export default function BirdieGolfWebsite() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><p style={{ fontSize: 13, fontWeight: 600 }}>{coach?.n} · 1 hr</p><p style={{ fontSize: 11, color: "#888" }}>Bay {autoAssignBay(lesDate, lesTime, bayBlocks, allBookings)}</p></div>
             <span style={{ fontSize: 16, fontWeight: 700, color: lp.credit ? "#2D8A5E" : "#5B6DCD" }}>{lp.label}</span></div></div>;
         })()}
-        {lesDate && lesTime && lesCoach && <button style={{ ...S.b1, marginTop: 12, background: "#5B6DCD" }} onClick={() => setLesStep(1)}>Continue to Confirm</button>}
+        {lesDate && lesTime && lesCoach && <button style={{ ...S.b1, marginTop: 12, background: "#5B6DCD" }} onClick={() => {
+          const now = new Date();
+          const isToday = lesDate && dateKey(lesDate) === dateKey(now);
+          const currentH = now.getHours() + now.getMinutes() / 60;
+          if (isToday && lesTime && toH(lesTime) <= currentH) { fire("That time slot has passed — please select a new time."); setLesTime(null); setLesCoach(null); return; }
+          setLesStep(1);
+        }}>Continue to Confirm</button>}
       </>}
 
       {hasCard && lesTab === "credits" && <>
@@ -1140,9 +1151,32 @@ export default function BirdieGolfWebsite() {
           <input style={S.profIn} placeholder="Card number" value={newCard.num} onChange={e => setNewCard(p => ({ ...p, num: e.target.value }))} />
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}><input style={{ ...S.profIn, flex: 1 }} placeholder="MM/YY" value={newCard.exp} onChange={e => setNewCard(p => ({ ...p, exp: e.target.value }))} /><input style={{ ...S.profIn, flex: 1 }} placeholder="CVC" value={newCard.cvc} onChange={e => setNewCard(p => ({ ...p, cvc: e.target.value }))} /></div>
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}><button style={S.b2} onClick={() => { setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); }}>Cancel</button><button style={{ ...S.b1, flex: 2 }} onClick={async () => {
-            if (newCard.num && newCard.exp && newCard.cvc) {
-              await sb.post("payment_methods", { customer_id: customerId, brand: "Card", last4: newCard.num.slice(-4), exp: newCard.exp });
-              setCards(p => [...p, { id: Date.now(), brand: "Card", last4: newCard.num.slice(-4), exp: newCard.exp }]); setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); fire("Card added"); }
+            const rawNum = newCard.num.replace(/\D/g, "");
+            const rawExp = newCard.exp.replace(/\D/g, "");
+            const rawCvc = newCard.cvc.replace(/\D/g, "");
+            // Validate card number (Luhn algorithm)
+            const luhn = n => { let s=0,d=false; for(let i=n.length-1;i>=0;i--){let v=+n[i];if(d&&(v*=2)>9)v-=9;s+=v;d=!d;}return s%10===0; };
+            if (rawNum.length < 15 || rawNum.length > 16) { fire("Invalid card number"); return; }
+            if (!luhn(rawNum)) { fire("Card number is invalid"); return; }
+            if (rawExp.length !== 4) { fire("Invalid expiry (use MM/YY)"); return; }
+            const expMonth = parseInt(rawExp.slice(0,2));
+            const expYear = parseInt("20" + rawExp.slice(2));
+            const now = new Date();
+            if (expMonth < 1 || expMonth > 12 || new Date(expYear, expMonth) < now) { fire("Card has expired"); return; }
+            if (rawCvc.length < 3 || rawCvc.length > 4) { fire("Invalid CVC"); return; }
+            // Detect brand
+            const brand = rawNum[0] === "4" ? "Visa" : rawNum[0] === "5" ? "Mastercard" : rawNum.startsWith("34") || rawNum.startsWith("37") ? "Amex" : "Card";
+            const last4 = rawNum.slice(-4);
+            // Save to Square via proxy then to Supabase
+            const sqResult = await square("card.create", {
+              square_customer_id: sqCustId,
+              source_id: "cnon:card-nonce-ok", // sandbox test nonce — replace with Web Payments SDK nonce in production
+            });
+            const sqCardId = sqResult?.card?.id || null;
+            const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp: newCard.exp, square_card_id: sqCardId });
+            const savedId = Array.isArray(saved) ? saved[0]?.id : saved?.id;
+            setCards(p => [...p, { id: savedId || Date.now(), brand, last4, exp: newCard.exp, square_card_id: sqCardId }]);
+            setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); fire("Card added");
           }}>Save Card</button></div></div>
         : <button style={S.addCardBtn} onClick={() => setAddCard(true)}>{X.plus(14)} Add Card</button>}
       </div>
