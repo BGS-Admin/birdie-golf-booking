@@ -323,16 +323,14 @@ export default function BirdieGolfWebsite() {
       desc: t.description, date: new Date(t.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       method: t.payment_label || "Card", amt: "$" + Number(t.amount).toFixed(2),
     })));
-    // Upcoming bookings
+    // Upcoming bookings — always overwrite from Supabase
     const today = new Date(); today.setHours(0,0,0,0);
     const bks = await sb.get("bookings", `select=*&customer_id=eq.${cid}&status=eq.confirmed&order=date.asc`);
-    if (bks?.length) {
-      const upcoming = bks.filter(b => new Date(b.date + "T23:59:59") >= today);
-      setUpcomingBk(upcoming.map(b => ({
-        type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
-        sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
-      })));
-    }
+    const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today);
+    setUpcomingBk(upcoming.map(b => ({
+      id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
+      sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
+    })));
     // Membership — always reload from Supabase (reflects admin changes)
     const custData = await sb.get("customers", `id=eq.${cid}&select=tier,bay_credits_remaining,bay_credits_total,renewal_date,member_since`);
     if (custData?.[0]) {
@@ -589,6 +587,15 @@ export default function BirdieGolfWebsite() {
       const fresh = await sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled");
       if (fresh?.length) setAllBookings(fresh);
     }
+    if (k === "home" && customerId) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`);
+      const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today);
+      setUpcomingBk(upcoming.map(b => ({
+        id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
+        sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
+      })));
+    }
     if (k === "book") resetBk();
     if (k === "lessons") { resetLes(); setLesTab("book"); }
   };
@@ -763,6 +770,7 @@ export default function BirdieGolfWebsite() {
                 setUpcomingBk(p => [...p, { type: "bay", label: "Bay " + bkBay, sub: fmtDate(bkDate) + " · " + bkTime + " · " + durH + "hr" + (durH > 1 ? "s" : "") }]);
                 if (tier === "player" && price.credits > 0) setBayCredits(c => Math.max(0, c - price.credits));
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? bkDate.toISOString().split("T")[0] : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
+                if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), }))); }
                 fire("Bay booked!"); resetBk(); setTab("home");
               }}>Confirm & Pay</button>
             </div>
@@ -881,6 +889,7 @@ export default function BirdieGolfWebsite() {
                 if (lp.credit) { setTotL(c => Math.max(0, c - 1)); setCreditUsage(p => [...p, { date: fmtDate(new Date()), desc: "Lesson with " + coach?.n }]); }
                 setLesHistory(p => [...p, { type: "lesson", desc: "Lesson with " + coach?.n, date: fmtDate(new Date()), amt: lp.credit ? "1 credit" : lp.label }]);
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bayAssigned, date: lesDate ? lesDate.toISOString().split("T")[0] : "", start_time: lesTime, duration_slots: 2, status: "confirmed", type: "lesson" }]);
+                if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), }))); }
                 fire("Lesson booked!"); resetLes(); setTab("home");
               }}>Confirm & Book</button>
             </div>
