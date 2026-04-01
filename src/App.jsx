@@ -487,12 +487,7 @@ export default function BirdieGolfWebsite() {
           <h1 style={LS.bn}>BIRDIE GOLF STUDIOS</h1>
           <p style={LS.bs}>Wynwood, Miami, FL</p>
         </div>
-        <p style={LS.tagline}>Premium Indoor Golf Experience</p>
-        <div style={LS.features}>
-          <span style={LS.feat}>5 Trackman iO Bays</span><span style={LS.featDot}>·</span>
-          <span style={LS.feat}>Pro Lessons</span><span style={LS.featDot}>·</span>
-          <span style={LS.feat}>Up to 4/Bay</span>
-        </div>
+
         <div style={LS.divider} />
         <p style={LS.signInLabel}>Sign in or create an account to book</p>
         <label style={LS.label}>PHONE NUMBER</label>
@@ -503,7 +498,7 @@ export default function BirdieGolfWebsite() {
         <button style={{ ...S.b1, marginTop: 16, opacity: ph.length >= 10 ? 1 : 0.4 }} onClick={() => { if (ph.length >= 10) setAuthStep("otp"); }}>Continue</button>
         <div style={LS.demo}>Demo: any 10+ digits</div>
         <div style={LS.footer}>
-          <span style={LS.footerText}>45 NE 26th St., Wynwood, Miami</span>
+          <span style={LS.footerText}>45 NE 26th St, Unit C, Miami, FL 33145</span>
           <span style={LS.footerText}>Mon–Fri 7am–10pm · Sat–Sun 9am–9pm</span>
         </div>
       </>
