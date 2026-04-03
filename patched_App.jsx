@@ -141,22 +141,12 @@ function getAvailBays(dt, startSlot, durSlots, bayBlocks, realBookings) {
   return [1,2,3,4,5].map(bay => ({ bay, ok: needed.every(s => !getBk(dt, s, realBookings).includes(bay) && !isBayBlocked(bay, dt, s, bayBlocks)) }));
 }
 
-function isSameLocalDay(a, b) {
-  return a.getFullYear() === b.getFullYear() &&
-         a.getMonth()    === b.getMonth()    &&
-         a.getDate()     === b.getDate();
-}
-
 function getAllTimes(dt, durSlots, bayBlocks, realBookings) {
   const hrs = getHours(dt), result = [];
-  const now = new Date();
-  const isToday = isSameLocalDay(dt, now);
-  const currentH = now.getHours() + now.getMinutes() / 60;
   for (let i = 0; i <= hrs.length - durSlots; i++) {
     const needed = hrs.slice(i, i + durSlots);
     const consecutive = needed.every((s, j) => j === 0 || toH(s) - toH(needed[j - 1]) === 0.5);
     if (!consecutive) continue;
-    if (isToday && toH(hrs[i]) <= currentH) { result.push({ time: hrs[i], open: false }); continue; }
     const anyBayFree = [1,2,3,4,5].some(bay => needed.every(s => !getBk(dt, s, realBookings).includes(bay) && !isBayBlocked(bay, dt, s, bayBlocks)));
     result.push({ time: hrs[i], open: anyBayFree });
   }
@@ -188,15 +178,11 @@ function lessonPrice(tier, hasCredits, creditCoachId, selCoach) {
 /* Lesson helpers */
 function getLessonTimes(dt, coachFilter, bayBlocks, realBookings) {
   const dn = dayName(dt), hrs = getHours(dt), times = new Set();
-  const now = new Date();
-  const isToday = isSameLocalDay(dt, now);
-  const currentH = now.getHours() + now.getMinutes() / 60;
   (coachFilter ? [coachFilter] : COACHES).forEach(c => {
     const avSlots = c.av[dn] || [];
     avSlots.forEach((s, si) => {
       const next = avSlots[si + 1];
       if (!next || toH(next) - toH(s) !== 0.5) return;
-      if (isToday && toH(s) <= currentH) return;
       if ([1,2,3,4,5].some(bay => [s, next].every(sl => !getBk(dt, sl, realBookings).includes(bay) && !isBayBlocked(bay, dt, sl, bayBlocks))) && hrs.includes(s)) times.add(s);
     });
   });
@@ -306,7 +292,6 @@ export default function BirdieGolfWebsite() {
   /* Upcoming & Transactions */
   const [upcomingBk, setUpcomingBk] = useState([]);
   const [allBookings, setAllBookings] = useState([]);
-  const [manageBk, setManageBk] = useState(null); // booking being managed (edit/cancel)
   const [transactions, setTransactions] = useState([]);
   const [memHistory] = useState([]);
 
@@ -338,14 +323,16 @@ export default function BirdieGolfWebsite() {
       desc: t.description, date: new Date(t.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       method: t.payment_label || "Card", amt: "$" + Number(t.amount).toFixed(2),
     })));
-    // Upcoming bookings — always overwrite from Supabase
+    // Upcoming bookings
     const today = new Date(); today.setHours(0,0,0,0);
     const bks = await sb.get("bookings", `select=*&customer_id=eq.${cid}&status=eq.confirmed&order=date.asc`);
-    const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today);
-    setUpcomingBk(upcoming.map(b => ({
-      id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
-      sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
-    })));
+    if (bks?.length) {
+      const upcoming = bks.filter(b => new Date(b.date + "T23:59:59") >= today);
+      setUpcomingBk(upcoming.map(b => ({
+        type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
+        sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
+      })));
+    }
     // Membership — always reload from Supabase (reflects admin changes)
     const custData = await sb.get("customers", `id=eq.${cid}&select=tier,bay_credits_remaining,bay_credits_total,renewal_date,member_since`);
     if (custData?.[0]) {
@@ -407,12 +394,6 @@ export default function BirdieGolfWebsite() {
       amount: bookingData.total, credits_used: bookingData.credits, discount: bookingData.disc,
       square_payment_id: sqPaymentId,
     });
-    // Deduct credits if used
-    if (bookingData.credits > 0) {
-      const newCredits = Math.max(0, bayCredits - bookingData.credits);
-      sb.patch("customers", `id=eq.${customerId}`, { bay_credits_remaining: newCredits });
-      setBayCredits(newCredits);
-    }
     // Save transaction to Supabase (fire and forget)
     sb.post("transactions", {
       customer_id: customerId, description: "Bay Booking · Bay " + bookingData.bay,
@@ -493,7 +474,12 @@ export default function BirdieGolfWebsite() {
           <h1 style={LS.bn}>BIRDIE GOLF STUDIOS</h1>
           <p style={LS.bs}>Wynwood, Miami, FL</p>
         </div>
-
+        <p style={LS.tagline}>Premium Indoor Golf Experience</p>
+        <div style={LS.features}>
+          <span style={LS.feat}>5 Trackman iO Bays</span><span style={LS.featDot}>·</span>
+          <span style={LS.feat}>Pro Lessons</span><span style={LS.featDot}>·</span>
+          <span style={LS.feat}>Up to 4/Bay</span>
+        </div>
         <div style={LS.divider} />
         <p style={LS.signInLabel}>Sign in or create an account to book</p>
         <label style={LS.label}>PHONE NUMBER</label>
@@ -504,7 +490,7 @@ export default function BirdieGolfWebsite() {
         <button style={{ ...S.b1, marginTop: 16, opacity: ph.length >= 10 ? 1 : 0.4 }} onClick={() => { if (ph.length >= 10) setAuthStep("otp"); }}>Continue</button>
         <div style={LS.demo}>Demo: any 10+ digits</div>
         <div style={LS.footer}>
-          <span style={LS.footerText}>45 NE 26th St, Unit C, Miami, FL 33145</span>
+          <span style={LS.footerText}>45 NE 26th St., Wynwood, Miami</span>
           <span style={LS.footerText}>Mon–Fri 7am–10pm · Sat–Sun 9am–9pm</span>
         </div>
       </>
@@ -603,20 +589,6 @@ export default function BirdieGolfWebsite() {
       const fresh = await sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled");
       if (fresh?.length) setAllBookings(fresh);
     }
-    if (k === "home" && customerId) {
-      const today = new Date(); today.setHours(0,0,0,0);
-      const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`);
-      const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today);
-      setUpcomingBk(upcoming.map(b => ({
-        id: b.id, type: b.type,
-        label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
-        sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
-        date: b.date, start_time: b.start_time, bay: b.bay,
-        duration_slots: b.duration_slots, credits_used: b.credits_used || 0,
-        amount: b.amount || 0, square_payment_id: b.square_payment_id || null,
-        square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "",
-      })));
-    }
     if (k === "book") resetBk();
     if (k === "lessons") { resetLes(); setLesTab("book"); }
   };
@@ -704,21 +676,15 @@ export default function BirdieGolfWebsite() {
             {b.type === "lesson" ? X.coach(18) : X.cal(18)}
           </div>
           <div style={{ flex: 1 }}><p style={{ fontSize: 14, fontWeight: 600 }}>{b.label}</p><p style={{ fontSize: 12, color: "#888" }}>{b.sub}</p></div>
-          <button
-            style={{ fontSize: 11, fontWeight: 600, color: b.type === "lesson" ? "#5B6DCD" : "#2D8A5E", background: "none", border: `1px solid ${b.type === "lesson" ? "#5B6DCD44" : "#2D8A5E44"}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: ff, flexShrink: 0 }}
-            onClick={() => setManageBk(b)}
-          >
-            Manage
-          </button>
         </div>
       ))}
 
       {/* Active Membership & Lesson Package cards — side by side */}
       {(tierData || totL > 0) && <>
         <h3 style={S.sh}>My Plans</h3>
-        <div style={{ display: "grid", gridTemplateColumns: (tierData && tier !== "none" && totL > 0) ? "1fr 1fr" : "1fr", gap: 12, alignItems: "stretch" }}>
+        <div style={{ display: (tierData && totL > 0 && isDesktop) ? "grid" : (tierData && totL > 0) ? "flex" : "block", gridTemplateColumns: "1fr 1fr", gap: 12, flexDirection: "column" }}>
           {tierData && tier !== "none" && (
-            <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, display: "flex", flexDirection: "column" }}>
+            <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, flex: 1 }}>
               <span style={S.mcBadge}>{tierData.badge}</span>
               <p style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginTop: 6 }}>{tierData.n} Plan</p>
               <p style={{ fontSize: 12, color: "#ffffffbb" }}>${tierData.price}/mo</p>
@@ -727,7 +693,7 @@ export default function BirdieGolfWebsite() {
             </div>
           )}
           {totL > 0 && creditCoach && (
-            <div style={{ background: "#5B6DCD12", border: "1px solid #5B6DCD33", borderRadius: 16, padding: 16, display: "flex", flexDirection: "column" }}>
+            <div style={{ background: "#5B6DCD12", border: "1px solid #5B6DCD33", borderRadius: 16, padding: 16, flex: 1, marginTop: (tierData && tier !== "none" && !isDesktop) ? 12 : 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontSize: 13, fontWeight: 600, color: "#5B6DCD" }}>{creditPkg}</span><span style={{ background: "#5B6DCD", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totL}/{maxL}</span></div>
               <p style={{ fontSize: 12, color: "#888" }}>{creditCoach.n}</p>
               <div style={{ ...S.bar, marginTop: 6 }}><div style={{ ...S.barF, width: (totL / maxL * 100) + "%", background: "#5B6DCD" }} /></div>
@@ -742,19 +708,14 @@ export default function BirdieGolfWebsite() {
 
       <h3 style={{ ...S.sh, marginTop: 24 }}>About Us</h3>
       <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10, marginBottom: 18 }}>
+        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Hours</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Mon–Fri 7am–10pm</p><p style={{ fontSize: 12, color: "#555" }}>Sat–Sun 9am–9pm</p></div>
+        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Location</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>45 NE 26th St., Unit C, Miami, FL 33137</p></div>
         <div style={{ ...S.aboutCard, gridColumn: isDesktop ? "auto" : "1 / -1" }}>
           <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Bay Rates</p>
           <p style={{ fontSize: 12, color: "#2D8A5E", lineHeight: 1.8 }}>Non-Peak ${cfg.op}/hr</p>
-          <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 7am–5pm</p><p style={{ fontSize: 10, color: "#888" }}>Sat–Sun 9am–9pm</p>
+          <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 7am–5pm · Sat–Sun 9am–9pm</p>
           <p style={{ fontSize: 12, color: "#E8890C", lineHeight: 1.8, marginTop: 4 }}>Peak ${cfg.pk}/hr</p>
           <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 5pm–10pm</p>
-        </div>
-        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Hours</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Mon–Fri 7am–10pm</p><p style={{ fontSize: 12, color: "#555" }}>Sat–Sun 9am–9pm</p></div>
-        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Location</p>
-          <a href="https://maps.apple.com/?q=45+NE+26th+St+Miami+FL+33137" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-            <p style={{ fontSize: 12, color: "#2D8A5E", lineHeight: 1.6 }}>45 NE 26th St., Unit C</p>
-            <p style={{ fontSize: 12, color: "#2D8A5E" }}>Miami, FL 33137</p>
-          </a>
         </div>
       </div>
 
@@ -799,8 +760,9 @@ export default function BirdieGolfWebsite() {
                 if (!bkAgree) return;
                 const durH = bkDur * 0.5;
                 await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: price.total, credits: price.credits, disc: price.disc });
+                setUpcomingBk(p => [...p, { type: "bay", label: "Bay " + bkBay, sub: fmtDate(bkDate) + " · " + bkTime + " · " + durH + "hr" + (durH > 1 ? "s" : "") }]);
+                if (tier === "player" && price.credits > 0) setBayCredits(c => Math.max(0, c - price.credits));
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? bkDate.toISOString().split("T")[0] : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
-                if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
                 fire("Bay booked!"); resetBk(); setTab("home");
               }}>Confirm & Pay</button>
             </div>
@@ -825,7 +787,7 @@ export default function BirdieGolfWebsite() {
           const sel = bkDate && dateKey(bkDate) === dateKey(d);
           const isToday = dateKey(d) === dateKey(new Date());
           return <button key={dateKey(d)} style={{ ...S.dateBtn, ...(sel ? S.dateSel : {}), ...(isToday && !sel ? { borderColor: "#2D8A5E" } : {}) }}
-            onClick={async () => { setBkDate(d); setBkDur(null); setBkTime(null); setBkBay(null); const fresh = await sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled"); if (fresh?.length) setAllBookings(fresh); }}>
+            onClick={() => { setBkDate(d); setBkDur(null); setBkTime(null); setBkBay(null); }}>
             <span style={{ fontSize: 11, color: sel ? "#fff" : "#888" }}>{dayName(d)}</span>
             <span style={{ fontSize: 18, fontWeight: 700, color: sel ? "#fff" : "#1a1a1a" }}>{d.getDate()}</span>
             <span style={{ fontSize: 10, color: sel ? "#ffffffcc" : "#aaa" }}>{d.toLocaleDateString("en-US", { month: "short" })}</span>
@@ -848,9 +810,10 @@ export default function BirdieGolfWebsite() {
         <div style={{ ...S.timeGrid, gridTemplateColumns: isDesktop ? "repeat(6, 1fr)" : "repeat(4, 1fr)" }}>
           {getAllTimes(bkDate, bkDur, bayBlocks, allBookings).map(({ time: t, open }) => {
             const sel = bkTime === t, pk = isPeak(bkDate, t), wk = isWeekend(bkDate);
-            return <button key={t} style={{ ...S.timeBtn, ...(sel ? S.timeSel : {}), ...(!open ? { opacity: 0.35, cursor: "not-allowed" } : {}) }}
+            return <button key={t} style={{ ...S.timeBtn, ...(sel ? S.timeSel : {}), ...(!open ? { opacity: 0.35, cursor: "not-allowed" } : {}), borderColor: sel ? "#2D8A5E" : !open ? "#e8e8e6" : pk ? "#E8890C" : wk ? "#5B6DCD" : "#e8e8e6" }}
               onClick={() => { if (open) { setBkTime(t); setBkBay(null); } }} disabled={!open}>
               <span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : !open ? "#ccc" : "#1a1a1a" }}>{t}</span>
+              {open && pk && <span style={{ fontSize: 8, fontWeight: 700, color: sel ? "#fff" : "#E8890C" }}>PEAK</span>}
               {!open && <span style={{ fontSize: 8, fontWeight: 700, color: "#ccc" }}>FULL</span>}
             </button>;
           })}
@@ -880,13 +843,7 @@ export default function BirdieGolfWebsite() {
           {price.disc > 0 && <p style={{ fontSize: 11, color: "#2D8A5E", marginTop: 2 }}>Member discount: -${price.disc.toFixed(2)}</p>}
         </div>;
       })()}
-      {bkDate && bkDur && bkTime && bkBay && <button style={{ ...S.b1, marginTop: 14 }} onClick={() => {
-        const now = new Date();
-        const isToday = bkDate && isSameLocalDay(bkDate, now);
-        const currentH = now.getHours() + now.getMinutes() / 60;
-        if (isToday && bkTime && toH(bkTime) <= currentH) { fire("That time slot has passed — please select a new time."); setBkTime(null); setBkBay(null); return; }
-        setBkStep(1);
-      }}>Continue to Confirm</button>}
+      {bkDate && bkDur && bkTime && bkBay && <button style={{ ...S.b1, marginTop: 14 }} onClick={() => setBkStep(1)}>Continue to Confirm</button>}
     </>;
   };
 
@@ -912,11 +869,8 @@ export default function BirdieGolfWebsite() {
           <div>
             <div style={S.polBox}>
               <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Cancellation Policy</p>
-              <div style={{ fontSize: 12, color: "#8B6914", lineHeight: 1.6, marginBottom: 12 }}>
-                <p style={{ marginBottom: 6 }}><strong>Within 24 hours or no-show:</strong> No refund. You will be charged the bay rental cost for that hour (${slotRate(lesDate, lesTime, cfg).toFixed(2)}).</p>
-                <p><strong>More than 24 hours in advance:</strong> Full refund — lesson credits returned to your account, or refund to your credit card on file.</p>
-              </div>
-              <label style={S.chkRow}><input type="checkbox" checked={lesAgree} onChange={() => setLesAgree(!lesAgree)} style={{ marginRight: 8, accentColor: "#5B6DCD" }} /><span style={{ fontSize: 12 }}>I have read and agree to the cancellation policy</span></label>
+              <p style={{ fontSize: 12, color: "#8B6914", lineHeight: 1.5, marginBottom: 12 }}>Late cancellation (within 24 hrs): ${cancelFee} fee. Credits not restored.</p>
+              <label style={S.chkRow}><input type="checkbox" checked={lesAgree} onChange={() => setLesAgree(!lesAgree)} style={{ marginRight: 8, accentColor: "#5B6DCD" }} /><span style={{ fontSize: 12 }}>I agree to the cancellation policy</span></label>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
               <button style={S.b2} onClick={() => setLesStep(0)}>Back</button>
@@ -927,7 +881,6 @@ export default function BirdieGolfWebsite() {
                 if (lp.credit) { setTotL(c => Math.max(0, c - 1)); setCreditUsage(p => [...p, { date: fmtDate(new Date()), desc: "Lesson with " + coach?.n }]); }
                 setLesHistory(p => [...p, { type: "lesson", desc: "Lesson with " + coach?.n, date: fmtDate(new Date()), amt: lp.credit ? "1 credit" : lp.label }]);
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bayAssigned, date: lesDate ? lesDate.toISOString().split("T")[0] : "", start_time: lesTime, duration_slots: 2, status: "confirmed", type: "lesson" }]);
-                if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
                 fire("Lesson booked!"); resetLes(); setTab("home");
               }}>Confirm & Book</button>
             </div>
@@ -998,13 +951,7 @@ export default function BirdieGolfWebsite() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><p style={{ fontSize: 13, fontWeight: 600 }}>{coach?.n} · 1 hr</p><p style={{ fontSize: 11, color: "#888" }}>Bay {autoAssignBay(lesDate, lesTime, bayBlocks, allBookings)}</p></div>
             <span style={{ fontSize: 16, fontWeight: 700, color: lp.credit ? "#2D8A5E" : "#5B6DCD" }}>{lp.label}</span></div></div>;
         })()}
-        {lesDate && lesTime && lesCoach && <button style={{ ...S.b1, marginTop: 12, background: "#5B6DCD" }} onClick={() => {
-          const now = new Date();
-          const isToday = lesDate && isSameLocalDay(lesDate, now);
-          const currentH = now.getHours() + now.getMinutes() / 60;
-          if (isToday && lesTime && toH(lesTime) <= currentH) { fire("That time slot has passed — please select a new time."); setLesTime(null); setLesCoach(null); return; }
-          setLesStep(1);
-        }}>Continue to Confirm</button>}
+        {lesDate && lesTime && lesCoach && <button style={{ ...S.b1, marginTop: 12, background: "#5B6DCD" }} onClick={() => setLesStep(1)}>Continue to Confirm</button>}
       </>}
 
       {hasCard && lesTab === "credits" && <>
@@ -1165,7 +1112,7 @@ export default function BirdieGolfWebsite() {
     <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>Profile</h2>
     <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
       <div style={S.sec}><h4 style={S.secL}>Personal Information</h4>
-        {[{ l: "First Name", v: onbF }, { l: "Last Name", v: onbL }, { l: "Phone", v: profPhone ? ("+1 " + profPhone.replace(/\D/g,"").replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")) : ("+1 " + ph.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")), edit: "phone" }, { l: "Email", v: profEmail || onbE, edit: "email" }].map(f =>
+        {[{ l: "First Name", v: onbF }, { l: "Last Name", v: onbL }, { l: "Phone", v: profPhone || ("+1 " + ph.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")), edit: "phone" }, { l: "Email", v: profEmail || onbE, edit: "email" }].map(f =>
           <div key={f.l} style={S.fRow}><div style={{ flex: 1 }}><p style={S.fL}>{f.l}</p><p style={S.fV}>{f.v}</p></div>
             {f.edit && <button style={S.editBtn} onClick={() => setEditModal({ type: f.edit, val: "", step: "edit", otp: ["","","","","",""] })}>{X.edit(14)}</button>}</div>)}
       </div>
@@ -1173,61 +1120,12 @@ export default function BirdieGolfWebsite() {
         {cards.map(c => <div key={c.id} style={S.fRow}><div style={{ flex: 1 }}><p style={{ fontSize: 14, fontWeight: 600 }}>{c.brand} ····{c.last4}</p><p style={{ fontSize: 11, color: "#888" }}>Exp {c.exp}</p></div>
           {cards.length > 1 ? <button style={S.delCardBtn} onClick={() => { setCards(p => p.filter(x => x.id !== c.id)); fire("Card removed"); }}>{X.trash(14)}</button> : <span style={{ fontSize: 10, color: "#aaa", fontWeight: 600 }}>Required</span>}</div>)}
         {addCard ? <div style={{ marginTop: 12 }}>
-          <input
-            style={S.profIn} placeholder="Card number" type="tel" maxLength={19}
-            value={newCard.num}
-            onChange={e => {
-              const v = e.target.value.replace(/\D/g,"").slice(0,16);
-              const fmt = v.match(/.{1,4}/g)?.join(" ") || v;
-              if (fmt !== newCard.num) setNewCard(p => ({ ...p, num: fmt }));
-            }}
-          />
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <input
-              style={{ ...S.profIn, flex: 1 }} placeholder="MM/YY" type="tel" maxLength={5}
-              value={newCard.exp}
-              onChange={e => {
-                let v = e.target.value.replace(/\D/g,"").slice(0,4);
-                if (v.length > 2) v = v.slice(0,2) + "/" + v.slice(2);
-                if (v !== newCard.exp) setNewCard(p => ({ ...p, exp: v }));
-              }}
-            />
-            <input
-              style={{ ...S.profIn, flex: 1 }} placeholder="CVC" type="tel" maxLength={4}
-              value={newCard.cvc}
-              onChange={e => {
-                const v = e.target.value.replace(/\D/g,"").slice(0,4);
-                if (v !== newCard.cvc) setNewCard(p => ({ ...p, cvc: v }));
-              }}
-            />
-          </div>
+          <input style={S.profIn} placeholder="Card number" value={newCard.num} onChange={e => setNewCard(p => ({ ...p, num: e.target.value }))} />
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}><input style={{ ...S.profIn, flex: 1 }} placeholder="MM/YY" value={newCard.exp} onChange={e => setNewCard(p => ({ ...p, exp: e.target.value }))} /><input style={{ ...S.profIn, flex: 1 }} placeholder="CVC" value={newCard.cvc} onChange={e => setNewCard(p => ({ ...p, cvc: e.target.value }))} /></div>
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}><button style={S.b2} onClick={() => { setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); }}>Cancel</button><button style={{ ...S.b1, flex: 2 }} onClick={async () => {
-            const rawNum = newCard.num.replace(/\D/g, "");
-            const rawExp = newCard.exp.replace(/\D/g, "");
-            const rawCvc = newCard.cvc.replace(/\D/g, "");
-            // Validate card number (Luhn algorithm)
-            const luhn = n => { let s=0,d=false; for(let i=n.length-1;i>=0;i--){let v=+n[i];if(d&&(v*=2)>9)v-=9;s+=v;d=!d;}return s%10===0; };
-            if (rawNum.length < 15 || rawNum.length > 16) { fire("Invalid card number"); return; }
-            if (!luhn(rawNum)) { fire("Card number is invalid"); return; }
-            if (rawExp.length !== 4) { fire("Invalid expiry (use MM/YY)"); return; }
-            const expMonth = parseInt(rawExp.slice(0,2));
-            const expYear = parseInt("20" + rawExp.slice(2));
-            const now = new Date();
-            if (expMonth < 1 || expMonth > 12 || new Date(expYear, expMonth) < now) { fire("Card has expired"); return; }
-            if (rawCvc.length < 3 || rawCvc.length > 4) { fire("Invalid CVC"); return; }
-            // Detect brand
-            const brand = rawNum[0] === "4" ? "Visa" : rawNum[0] === "5" ? "Mastercard" : rawNum.startsWith("34") || rawNum.startsWith("37") ? "Amex" : "Card";
-            const last4 = rawNum.slice(-4);
-            // Save to Square via proxy then to Supabase
-            const sqResult = await square("card.create", {
-              square_customer_id: sqCustId,
-              source_id: "cnon:card-nonce-ok", // sandbox test nonce — replace with Web Payments SDK nonce in production
-            });
-            const sqCardId = sqResult?.card?.id || null;
-            const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp: newCard.exp, square_card_id: sqCardId });
-            const savedId = Array.isArray(saved) ? saved[0]?.id : saved?.id;
-            setCards(p => [...p, { id: savedId || Date.now(), brand, last4, exp: newCard.exp, square_card_id: sqCardId }]);
-            setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); fire("Card added");
+            if (newCard.num && newCard.exp && newCard.cvc) {
+              await sb.post("payment_methods", { customer_id: customerId, brand: "Card", last4: newCard.num.slice(-4), exp: newCard.exp });
+              setCards(p => [...p, { id: Date.now(), brand: "Card", last4: newCard.num.slice(-4), exp: newCard.exp }]); setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); fire("Card added"); }
           }}>Save Card</button></div></div>
         : <button style={S.addCardBtn} onClick={() => setAddCard(true)}>{X.plus(14)} Add Card</button>}
       </div>
@@ -1273,272 +1171,7 @@ export default function BirdieGolfWebsite() {
       {!isMobile && <TopNav />}
       <div style={S.scroll}>{renderContent()}</div>
       {isMobile && <BottomNav />}
-      {/* ══ MANAGE BOOKING MODAL ══ */}
-      {manageBk && <ManageBookingModal
-        bk={manageBk}
-        onClose={() => setManageBk(null)}
-        customerId={customerId}
-        tier={tier}
-        bayCredits={bayCredits}
-        setBayCredits={setBayCredits}
-        cfg={cfg}
-        sb={sb}
-        square={square}
-        cards={cards}
-        fire={fire}
-        profEmail={profEmail}
-        onbE={onbE}
-        onbF={onbF}
-        onbL={onbL}
-        onRefresh={() => {
-          if (customerId) {
-            const today = new Date(); today.setHours(0,0,0,0);
-            sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`).then(bks => {
-              const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today);
-              setUpcomingBk(upcoming.map(b => ({
-                id: b.id, type: b.type,
-                label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay,
-                sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
-                date: b.date, start_time: b.start_time, bay: b.bay,
-                duration_slots: b.duration_slots, credits_used: b.credits_used || 0,
-                amount: b.amount || 0, square_payment_id: b.square_payment_id || null,
-                square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "",
-              })));
-            });
-            sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled").then(a => { if (a?.length) setAllBookings(a); });
-          }
-        }}
-        SUPABASE_KEY={SUPABASE_KEY}
-        SQUARE_FN_URL={SQUARE_FN_URL}
-        ff={ff}
-        mono={mono}
-      />}
       {toast && <div style={S.toast}>{toast}</div>}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   MANAGE BOOKING MODAL — Cancel bay & lesson bookings
-   ═══════════════════════════════════════════════════════════ */
-
-function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayCredits, cfg, sb, square, cards, fire, onRefresh, SUPABASE_KEY, SQUARE_FN_URL, ff, mono, profEmail, onbE, onbF, onbL }) {
-  const [saving, setSaving] = React.useState(false);
-
-  const toH = s => { const [t,ap]=s.split(" "); let [h,m]=t.split(":").map(Number); if(ap==="PM"&&h!==12)h+=12; if(ap==="AM"&&h===12)h=0; return h+m/60; };
-
-  // Parse booking start time into a proper local Date
-  const bkStart = (() => {
-    const [t,ap] = (bk.start_time||"9:00 AM").split(" ");
-    let [h,m] = t.split(":").map(Number);
-    if(ap==="PM"&&h!==12) h+=12; if(ap==="AM"&&h===12) h=0;
-    const d = new Date(bk.date + "T00:00:00");
-    d.setHours(h, m, 0, 0);
-    return d;
-  })();
-
-  const hoursUntil = (bkStart - new Date()) / 3600000;
-  const within24   = hoursUntil <= 24 && hoursUntil > 0;
-  const isPast     = hoursUntil <= 0;
-
-  // Rate for this booking slot
-  const d    = new Date(bk.date + "T12:00:00");
-  const isWk = d.getDay() === 0 || d.getDay() === 6;
-  const hour = toH(bk.start_time || "9:00 AM");
-  const isPeak = !isWk && hour >= 17;
-  const rate = isPeak ? cfg.pk : cfg.op;
-
-  const creditsUsed = bk.credits_used || 0;
-  const isMember    = tier && tier !== "none" && tier !== "starter";
-  const isLesson    = bk.type === "lesson";
-  const lateFee     = rate; // 1hr bay rate for lesson late cancel
-
-  // Send cancellation email
-  const sendCancelEmail = async (refundDesc) => {
-    try {
-      await fetch(SQUARE_FN_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
-        body: JSON.stringify({
-          action: "email.send",
-          type: "cancellation",
-          customer_name: (onbF + " " + onbL).trim(),
-          customer_email: profEmail || onbE,
-          booking_type: isLesson ? "Lesson" : "Bay Booking",
-          date: bk.date,
-          time: bk.start_time,
-          bay: bk.bay ? "Bay " + bk.bay : "",
-          refund_info: refundDesc,
-        }),
-      });
-    } catch(e) { console.warn("Cancel email failed", e); }
-  };
-
-  /* ── Cancel booking ── */
-  const cancelBooking = async () => {
-    setSaving(true);
-
-    // 1. Mark booking cancelled — this immediately frees the bay
-    await sb.patch("bookings", `id=eq.${bk.id}`, {
-      status: "cancelled",
-      cancelled_at: new Date().toISOString(),
-    });
-
-    let refundDesc = "No refund (within 24-hour cancellation window).";
-
-    if (within24 && isLesson) {
-      // Lesson within 24h: charge late fee
-      const defaultCard = cards[0];
-      let sqPaymentId = null;
-      if (defaultCard?.square_card_id && bk.square_customer_id) {
-        const payment = await square("payment.create", {
-          square_customer_id: bk.square_customer_id,
-          card_id: defaultCard.square_card_id,
-          amount: lateFee,
-          note: `Late cancellation fee · Lesson ${bk.date}`,
-        });
-        sqPaymentId = payment?.payment?.id || null;
-      }
-      await sb.post("transactions", {
-        customer_id: customerId,
-        description: `Late Cancellation Fee · Lesson`,
-        date: new Date().toISOString().split("T")[0],
-        amount: lateFee,
-        payment_label: "Card",
-        square_payment_id: sqPaymentId,
-      });
-      refundDesc = `Late cancellation fee of $${lateFee.toFixed(2)} charged.`;
-      fire(`Lesson cancelled · $${lateFee.toFixed(2)} fee charged`);
-
-    } else if (!within24) {
-      // Outside 24h window: full refund — handle credits AND card simultaneously
-      const refundParts = [];
-
-      // Refund credits if any were used
-      if (creditsUsed > 0 && isMember) {
-        const newCredits = bayCredits + creditsUsed;
-        await sb.patch("customers", `id=eq.${customerId}`, { bay_credits_remaining: newCredits });
-        setBayCredits(newCredits);
-        await sb.post("transactions", {
-          customer_id: customerId,
-          description: `Refund (credits) · ${isLesson ? "Lesson" : "Bay " + bk.bay}`,
-          date: new Date().toISOString().split("T")[0],
-          amount: 0,
-          payment_label: "Credits",
-        });
-        refundParts.push(`${creditsUsed} credit${creditsUsed !== 1 ? "s" : ""} returned`);
-      }
-
-      // Refund card charge if any money was paid
-      if (bk.square_payment_id && bk.amount > 0) {
-        await square("payment.refund", {
-          payment_id: bk.square_payment_id,
-          amount: bk.amount,
-          reason: "Customer cancellation",
-        });
-        await sb.post("transactions", {
-          customer_id: customerId,
-          description: `Refund · ${isLesson ? "Lesson" : "Bay " + bk.bay}`,
-          date: new Date().toISOString().split("T")[0],
-          amount: -(bk.amount),
-          payment_label: "Refund",
-        });
-        refundParts.push(`$${bk.amount.toFixed(2)} refunded to card`);
-      }
-
-      if (refundParts.length > 0) {
-        refundDesc = refundParts.join(" + ") + ".";
-        fire("Cancelled · " + refundParts.join(" + "));
-      } else {
-        // No payment on file — still log cancellation
-        await sb.post("transactions", {
-          customer_id: customerId,
-          description: `Cancellation · ${isLesson ? "Lesson" : "Bay " + (bk.bay || bk.label || "")}`,
-          date: new Date().toISOString().split("T")[0],
-          amount: 0,
-          payment_label: "N/A",
-        });
-        fire("Booking cancelled");
-      }
-    } else {
-      // Bay within 24h: no refund — still log cancellation
-      await sb.post("transactions", {
-        customer_id: customerId,
-        description: `Cancellation (no refund) · ${isLesson ? "Lesson" : "Bay " + (bk.bay || bk.label || "")}`,
-        date: new Date().toISOString().split("T")[0],
-        amount: 0,
-        payment_label: "N/A",
-      });
-      fire("Booking cancelled (no refund)");
-    }
-
-    // Send cancellation confirmation email
-    await sendCancelEmail(refundDesc);
-
-    setSaving(false);
-    onClose();
-    onRefresh();
-  };
-
-  const GREEN="#2D8A5E", RED="#E03928", ORANGE="#E8890C", PURPLE="#5B6DCD";
-  const accentColor = isLesson ? PURPLE : GREEN;
-  const ov  = { position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20 };
-  const mod = { background:"#fff",borderRadius:20,padding:24,maxWidth:420,width:"100%",maxHeight:"85vh",overflowY:"auto" };
-  const btn1 = c => ({ background:c,color:"#fff",border:"none",borderRadius:12,padding:"13px 18px",fontSize:14,fontWeight:600,fontFamily:ff,cursor:"pointer",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8 });
-  const btn2 = { background:"#f0f0ee",color:"#1a1a1a",border:"none",borderRadius:12,padding:"13px 18px",fontSize:14,fontWeight:600,fontFamily:ff,cursor:"pointer",width:"100%",marginTop:8 };
-
-  return (
-    <div style={ov} onClick={onClose}>
-      <div style={mod} onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:16 }}>
-          <div style={{ width:40,height:40,borderRadius:10,background:accentColor+"14",color:accentColor,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:18 }}>
-            {isLesson ? "🎓" : "⛳"}
-          </div>
-          <div>
-            <h3 style={{ fontSize:16,fontWeight:700 }}>{bk.label}</h3>
-            <p style={{ fontSize:12,color:"#888" }}>{bk.sub}</p>
-          </div>
-        </div>
-
-        {isPast ? (
-          <div style={{ background:"#f8f8f6",borderRadius:10,padding:14,marginBottom:16,textAlign:"center" }}>
-            <p style={{ fontSize:13,color:"#888" }}>This booking has already passed.</p>
-          </div>
-        ) : (
-          <>
-            {/* Policy message */}
-            <div style={{ background: within24 ? RED+"08" : GREEN+"08", border:`1px solid ${within24 ? RED : GREEN}22`, borderRadius:10,padding:14,marginBottom:18 }}>
-              {within24 ? (
-                isLesson ? (
-                  <>
-                    <p style={{ fontSize:13,fontWeight:700,color:RED,marginBottom:6 }}>Within 24-Hour Window</p>
-                    <p style={{ fontSize:12,color:"#555",lineHeight:1.6 }}>Per our cancellation policy, cancelling within 24 hours of your lesson will incur a <strong>${lateFee.toFixed(2)}</strong> fee (the cost of renting the bay during your reserved hour). No refund on the lesson payment.</p>
-                  </>
-                ) : (
-                  <>
-                    <p style={{ fontSize:13,fontWeight:700,color:RED,marginBottom:6 }}>Cancelling within 24 hours</p>
-                    <p style={{ fontSize:12,color:"#555",lineHeight:1.6 }}>This booking starts soon, so it's no longer eligible for a refund. You can still cancel, but no credits or charges will be returned.</p>
-                  </>
-                )
-              ) : (
-                <>
-                  <p style={{ fontSize:13,fontWeight:700,color:GREEN,marginBottom:6 }}>You're good to cancel</p>
-                  <p style={{ fontSize:12,color:"#555",lineHeight:1.6 }}>
-                    You can still cancel this booking and receive a full refund. If you paid with credits, they'll be returned to your account.
-                  </p>
-                </>
-              )}
-            </div>
-
-            <button style={btn1(RED)} onClick={cancelBooking} disabled={saving}>
-              {saving ? "Processing..." : "Cancel"}
-            </button>
-          </>
-        )}
-
-        <button style={btn2} onClick={onClose}>Keep Booking</button>
-      </div>
     </div>
   );
 }
