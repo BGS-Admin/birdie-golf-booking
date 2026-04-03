@@ -1519,12 +1519,9 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
                 )
               ) : (
                 <>
-                  <p style={{ fontSize:13,fontWeight:700,color:GREEN,marginBottom:6 }}>More Than 24 Hours Away</p>
+                  <p style={{ fontSize:13,fontWeight:700,color:GREEN,marginBottom:6 }}>You're good to cancel</p>
                   <p style={{ fontSize:12,color:"#555",lineHeight:1.6 }}>
-                    You are eligible for a full refund to your original method of payment.
-                    {creditsUsed > 0 && isMember
-                      ? ` If you used credits, you will receive the full amount of ${creditsUsed} credit${creditsUsed!==1?"s":""} back.`
-                      : ""}
+                    You can still cancel this booking and receive a full refund. If you paid with credits, they'll be returned to your account.
                   </p>
                 </>
               )}
