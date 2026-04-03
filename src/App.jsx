@@ -1513,8 +1513,8 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
                   </>
                 ) : (
                   <>
-                    <p style={{ fontSize:13,fontWeight:700,color:RED,marginBottom:6 }}>Within 24-Hour Window</p>
-                    <p style={{ fontSize:12,color:"#555",lineHeight:1.6 }}>Per company cancellation policy, customers are not entitled to a refund if cancelling within 24-hours of booking start time.</p>
+                    <p style={{ fontSize:13,fontWeight:700,color:RED,marginBottom:6 }}>Cancelling within 24 hours</p>
+                    <p style={{ fontSize:12,color:"#555",lineHeight:1.6 }}>This booking starts soon, so it's no longer eligible for a refund. You can still cancel, but no credits or charges will be returned.</p>
                   </>
                 )
               ) : (
