@@ -377,13 +377,8 @@ export default function BirdieGolfWebsite() {
 
   /* ─── Email notifications ─── */
   const sendEmail = async (type, data) => {
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/square-proxy`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
-        body: JSON.stringify({ action: "email.send", type, ...data }),
-      });
-    } catch (e) { console.warn("Email send failed:", e); }
+    // Emails temporarily disabled
+    return;
   };
 
   /* ─── Save booking to Supabase ─── */
@@ -825,7 +820,7 @@ export default function BirdieGolfWebsite() {
           const sel = bkDate && dateKey(bkDate) === dateKey(d);
           const isToday = dateKey(d) === dateKey(new Date());
           return <button key={dateKey(d)} style={{ ...S.dateBtn, ...(sel ? S.dateSel : {}), ...(isToday && !sel ? { borderColor: "#2D8A5E" } : {}) }}
-            onClick={async () => { setBkDate(d); setBkDur(null); setBkTime(null); setBkBay(null); const fresh = await sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled"); if (fresh?.length) setAllBookings(fresh); }}>
+            onClick={() => { setBkDate(d); setBkDur(null); setBkTime(null); setBkBay(null); }}>
             <span style={{ fontSize: 11, color: sel ? "#fff" : "#888" }}>{dayName(d)}</span>
             <span style={{ fontSize: 18, fontWeight: 700, color: sel ? "#fff" : "#1a1a1a" }}>{d.getDate()}</span>
             <span style={{ fontSize: 10, color: sel ? "#ffffffcc" : "#aaa" }}>{d.toLocaleDateString("en-US", { month: "short" })}</span>
@@ -1355,23 +1350,8 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
 
   // Send cancellation email
   const sendCancelEmail = async (refundDesc) => {
-    try {
-      await fetch(SQUARE_FN_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
-        body: JSON.stringify({
-          action: "email.send",
-          type: "cancellation",
-          customer_name: (onbF + " " + onbL).trim(),
-          customer_email: profEmail || onbE,
-          booking_type: isLesson ? "Lesson" : "Bay Booking",
-          date: bk.date,
-          time: bk.start_time,
-          bay: bk.bay ? "Bay " + bk.bay : "",
-          refund_info: refundDesc,
-        }),
-      });
-    } catch(e) { console.warn("Cancel email failed", e); }
+    // Emails temporarily disabled
+    return;
   };
 
   /* ── Cancel booking ── */
