@@ -407,6 +407,12 @@ export default function BirdieGolfWebsite() {
       amount: bookingData.total, credits_used: bookingData.credits, discount: bookingData.disc,
       square_payment_id: sqPaymentId,
     });
+    // Deduct credits if used
+    if (bookingData.credits > 0) {
+      const newCredits = Math.max(0, bayCredits - bookingData.credits);
+      sb.patch("customers", `id=eq.${customerId}`, { bay_credits_remaining: newCredits });
+      setBayCredits(newCredits);
+    }
     // Save transaction to Supabase (fire and forget)
     sb.post("transactions", {
       customer_id: customerId, description: "Bay Booking · Bay " + bookingData.bay,
