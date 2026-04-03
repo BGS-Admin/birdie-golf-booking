@@ -799,8 +799,6 @@ export default function BirdieGolfWebsite() {
                 if (!bkAgree) return;
                 const durH = bkDur * 0.5;
                 await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: price.total, credits: price.credits, disc: price.disc });
-                setUpcomingBk(p => [...p, { type: "bay", label: "Bay " + bkBay, sub: fmtDate(bkDate) + " · " + bkTime + " · " + durH + "hr" + (durH > 1 ? "s" : "") }]);
-                if (tier === "player" && price.credits > 0) setBayCredits(c => Math.max(0, c - price.credits));
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? bkDate.toISOString().split("T")[0] : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
                 if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
                 fire("Bay booked!"); resetBk(); setTab("home");
@@ -1455,7 +1453,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
         // No payment on file — still log cancellation
         await sb.post("transactions", {
           customer_id: customerId,
-          description: `Cancellation · ${isLesson ? "Lesson" : "Bay " + bk.bay}`,
+          description: `Cancellation · ${isLesson ? "Lesson" : "Bay " + (bk.bay || bk.label || "")}`,
           date: new Date().toISOString().split("T")[0],
           amount: 0,
           payment_label: "N/A",
@@ -1466,7 +1464,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
       // Bay within 24h: no refund — still log cancellation
       await sb.post("transactions", {
         customer_id: customerId,
-        description: `Cancellation (no refund) · ${isLesson ? "Lesson" : "Bay " + bk.bay}`,
+        description: `Cancellation (no refund) · ${isLesson ? "Lesson" : "Bay " + (bk.bay || bk.label || "")}`,
         date: new Date().toISOString().split("T")[0],
         amount: 0,
         payment_label: "N/A",
