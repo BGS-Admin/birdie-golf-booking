@@ -266,6 +266,7 @@ export default function BirdieGolfWebsite() {
   const [editModal, setEditModal] = useState(null);
   const [cards, setCards] = useState([]);
   const [addCard, setAddCard] = useState(false);
+  const [showAllTxn, setShowAllTxn] = useState(false);
   const [newCard, setNewCard] = useState({ num: "", exp: "", cvc: "" });
 
   /* Membership */
@@ -379,13 +380,8 @@ export default function BirdieGolfWebsite() {
 
   /* ─── Email notifications ─── */
   const sendEmail = async (type, data) => {
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/square-proxy`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
-        body: JSON.stringify({ action: "email.send", type, ...data }),
-      });
-    } catch (e) { console.warn("Email send failed:", e); }
+    // Emails temporarily disabled
+    return;
   };
 
   /* ─── Save booking to Supabase ─── */
@@ -1236,8 +1232,10 @@ export default function BirdieGolfWebsite() {
     </div>
 
     <div style={S.sec}><h4 style={S.secL}>Transaction History</h4>
-      {transactions.length === 0 ? <p style={{ fontSize: 13, color: "#aaa", textAlign: "center", padding: "12px 0" }}>No transactions yet</p> :
-      transactions.map((t, i) => <div key={i} style={S.fRow}><div style={{ flex: 1 }}><p style={{ fontSize: 13, fontWeight: 500 }}>{t.desc}</p><p style={{ fontSize: 11, color: "#888" }}>{t.date} · {t.method}</p></div><span style={{ fontSize: 13, fontWeight: 600, color: t.amt === "$0.00" ? "#2D8A5E" : "#1a1a1a" }}>{t.amt}</span></div>)}
+      {transactions.length === 0 ? <p style={{ fontSize: 13, color: "#aaa", textAlign: "center", padding: "12px 0" }}>No transactions yet</p> : <>
+      {(showAllTxn ? transactions : transactions.slice(0, 5)).map((t, i) => <div key={i} style={S.fRow}><div style={{ flex: 1 }}><p style={{ fontSize: 13, fontWeight: 500 }}>{t.desc}</p><p style={{ fontSize: 11, color: "#888" }}>{t.date} · {t.method}</p></div><span style={{ fontSize: 13, fontWeight: 600, color: t.amt === "$0.00" ? "#2D8A5E" : "#1a1a1a" }}>{t.amt}</span></div>)}
+      {transactions.length > 5 && <button style={{ ...S.lk, width: "100%", textAlign: "center", padding: "10px 0", fontSize: 13 }} onClick={() => setShowAllTxn(p => !p)}>{showAllTxn ? "Show less" : "Show all " + transactions.length + " transactions"}</button>}
+      </>}
       <p style={{ fontSize: 10, color: "#ccc", textAlign: "center", marginTop: 14 }}>Powered by Square</p></div>
 
     <button style={{ ...S.b1, background: "#E03928", marginTop: 8 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOnbF(""); setOnbL(""); setOnbE(""); }}>{X.out(16)} Sign Out</button>
@@ -1357,23 +1355,8 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
 
   // Send cancellation email
   const sendCancelEmail = async (refundDesc) => {
-    try {
-      await fetch(SQUARE_FN_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
-        body: JSON.stringify({
-          action: "email.send",
-          type: "cancellation",
-          customer_name: (onbF + " " + onbL).trim(),
-          customer_email: profEmail || onbE,
-          booking_type: isLesson ? "Lesson" : "Bay Booking",
-          date: bk.date,
-          time: bk.start_time,
-          bay: bk.bay ? "Bay " + bk.bay : "",
-          refund_info: refundDesc,
-        }),
-      });
-    } catch(e) { console.warn("Cancel email failed", e); }
+    // Emails temporarily disabled
+    return;
   };
 
   /* ── Cancel booking ── */
@@ -1577,7 +1560,7 @@ const LS = {
 };
 
 const S = {
-  shell: { fontFamily: ff, minHeight: "100vh", display: "flex", flexDirection: "column", background: "#FAFAF8", overflow: "hidden" },
+  shell: { fontFamily: ff, position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: "#FAFAF8", overflow: "hidden" },
   scroll: { flex: 1, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch" },
   page: { maxWidth: 680, margin: "0 auto", padding: "24px 20px 80px", width: "100%" },
 
@@ -1591,7 +1574,7 @@ const S = {
   tierBadge: { fontSize: 11, fontWeight: 700, color: "#fff", padding: "6px 12px", borderRadius: 8, fontFamily: mono, letterSpacing: 1, border: "none", cursor: "pointer", flexShrink: 0 },
 
   /* Bottom nav (mobile) */
-  nav: { display: "flex", borderTop: "1px solid #e8e8e6", background: "#fff", paddingBottom: "env(safe-area-inset-bottom, 0px)" },
+  nav: { display: "flex", borderTop: "1px solid #e8e8e6", background: "#fff", paddingBottom: "env(safe-area-inset-bottom, 8px)", flexShrink: 0 },
   navBtn: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, padding: "10px 0 8px", border: "none", background: "none", cursor: "pointer", fontFamily: ff },
 
   /* Buttons */
