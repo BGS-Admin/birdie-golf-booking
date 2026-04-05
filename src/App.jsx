@@ -757,7 +757,7 @@ export default function BirdieGolfWebsite() {
         <h3 style={S.sh}>My Plans</h3>
         <div style={{ display: "grid", gridTemplateColumns: (tierData && tier !== "none" && totL > 0) ? "1fr 1fr" : "1fr", gap: 12, alignItems: "stretch" }}>
           {tierData && tier !== "none" && (
-            <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, display: "flex", flexDirection: "column" }}>
+            <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <span style={S.mcBadge}>{tierData.badge}</span>
               <p style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginTop: 6 }}>{tierData.n} Plan</p>
               <p style={{ fontSize: 12, color: "#ffffffbb" }}>${tierData.price}/mo</p>
@@ -766,7 +766,7 @@ export default function BirdieGolfWebsite() {
             </div>
           )}
           {totL > 0 && creditCoach && (
-            <div style={{ background: "#5B6DCD12", border: "1px solid #5B6DCD33", borderRadius: 16, padding: 16, display: "flex", flexDirection: "column" }}>
+            <div style={{ background: "#5B6DCD12", border: "1px solid #5B6DCD33", borderRadius: 18, padding: "22px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontSize: 13, fontWeight: 600, color: "#5B6DCD" }}>{creditPkg}</span><span style={{ background: "#5B6DCD", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totL}/{maxL}</span></div>
               <p style={{ fontSize: 12, color: "#888" }}>{creditCoach.n}</p>
               <div style={{ ...S.bar, marginTop: 6 }}><div style={{ ...S.barF, width: (totL / maxL * 100) + "%", background: "#5B6DCD" }} /></div>
@@ -1684,7 +1684,7 @@ const S = {
   detailV: { fontSize: 13, fontWeight: 600, textAlign: "right" },
 
   /* Membership gradient card */
-  mc: { borderRadius: 18, padding: "22px 20px", marginBottom: 18 },
+  mc: { borderRadius: 18, padding: "22px 20px" },
   mcBadge: { background: "#ffffff33", color: "#fff", fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 6, fontFamily: mono, letterSpacing: 1 },
   mcManage: { fontSize: 12, fontWeight: 600, color: "#ffffffcc", background: "#ffffff22", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontFamily: ff },
 
