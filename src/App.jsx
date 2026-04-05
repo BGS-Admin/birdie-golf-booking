@@ -245,6 +245,7 @@ export default function BirdieGolfWebsite() {
   const [customerId, setCustomerId] = useState(null);
   const [sqCustId, setSqCustId] = useState(null); // Square customer ID
   const otpRefs = [useRef(), useRef(), useRef(), useRef(), useRef(), useRef()];
+  const editOtpRefs = [useRef(), useRef(), useRef(), useRef(), useRef(), useRef()];
 
   /* Nav & Toast */
   const [tab, setTab] = useState("home");
@@ -377,8 +378,13 @@ export default function BirdieGolfWebsite() {
 
   /* ─── Email notifications ─── */
   const sendEmail = async (type, data) => {
-    // Emails temporarily disabled
-    return;
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/square-proxy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
+        body: JSON.stringify({ action: "email.send", type, ...data }),
+      });
+    } catch (e) { console.warn("Email send failed:", e); }
   };
 
   /* ─── Save booking to Supabase ─── */
@@ -513,8 +519,8 @@ export default function BirdieGolfWebsite() {
         </div>
         <p style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 20 }}>Code sent to +1 {ph.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")}</p>
         <div style={LS.otpRow}>
-          {otp.map((v, i) => <input key={i} ref={otpRefs[i]} style={LS.otpIn} type="text" maxLength={1} value={v}
-            onChange={e => { const val = e.target.value.replace(/[^0-9]/g, ""); const next = [...otp]; next[i] = val; setOtp(next); if (val && i < 5) otpRefs[i + 1].current?.focus(); }}
+          {otp.map((v, i) => <input key={i} ref={otpRefs[i]} style={LS.otpIn} type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={1} value={v}
+            onChange={e => { const val = e.target.value.replace(/[^0-9]/g, "").slice(-1); const next = [...otp]; next[i] = val; setOtp(next); if (val && i < 5) otpRefs[i + 1].current?.focus(); }}
             onKeyDown={e => { if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs[i - 1].current?.focus(); }} />)}
         </div>
         <button style={{ ...S.b1, marginTop: 16, opacity: otp.every(d => d) ? 1 : 0.4 }} onClick={async () => {
@@ -1243,7 +1249,7 @@ export default function BirdieGolfWebsite() {
       </> : <>
         <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Enter Code</h3>
         <p style={{ fontSize: 13, color: "#888", marginBottom: 14 }}>Demo: any 6 digits</p>
-        <div style={{ ...LS.otpRow, justifyContent: "center" }}>{editModal.otp.map((v, i) => <input key={i} style={{ ...LS.otpIn, width: 40, height: 44 }} type="text" maxLength={1} value={v} onChange={e => { const val = e.target.value.replace(/[^0-9]/g, ""); const next = [...editModal.otp]; next[i] = val; setEditModal(p => ({ ...p, otp: next })); }} />)}</div>
+        <div style={{ ...LS.otpRow, justifyContent: "center" }}>{editModal.otp.map((v, i) => <input key={i} ref={editOtpRefs[i]} style={{ ...LS.otpIn, width: 40, height: 44 }} type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={1} value={v} onChange={e => { const val = e.target.value.replace(/[^0-9]/g, "").slice(-1); const next = [...editModal.otp]; next[i] = val; setEditModal(p => ({ ...p, otp: next })); if (val && i < 5) editOtpRefs[i + 1].current?.focus(); }} onKeyDown={e => { if (e.key === "Backspace" && !editModal.otp[i] && i > 0) editOtpRefs[i - 1].current?.focus(); }} />)}</div>
         <button style={{ ...S.b1, marginTop: 12 }} onClick={async () => {
           if (editModal.type === "phone") {
             setProfPhone(editModal.val);
@@ -1350,8 +1356,23 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
 
   // Send cancellation email
   const sendCancelEmail = async (refundDesc) => {
-    // Emails temporarily disabled
-    return;
+    try {
+      await fetch(SQUARE_FN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
+        body: JSON.stringify({
+          action: "email.send",
+          type: "cancellation",
+          customer_name: (onbF + " " + onbL).trim(),
+          customer_email: profEmail || onbE,
+          booking_type: isLesson ? "Lesson" : "Bay Booking",
+          date: bk.date,
+          time: bk.start_time,
+          bay: bk.bay ? "Bay " + bk.bay : "",
+          refund_info: refundDesc,
+        }),
+      });
+    } catch(e) { console.warn("Cancel email failed", e); }
   };
 
   /* ── Cancel booking ── */
