@@ -228,6 +228,47 @@ function useWidth() {
 /* ═══════════════════════════════════════════════════════════
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════ */
+/* ─── Add Card Form (isolated to prevent focus loss on re-render) ─── */
+const AddCardForm = React.memo(({ onSave, onCancel, profIn }) => {
+  const [num, setNum] = React.useState("");
+  const [exp, setExp] = React.useState("");
+  const [cvc, setCvc] = React.useState("");
+  const expRef = React.useRef(); const cvcRef = React.useRef();
+  return (
+    <div style={{ marginTop: 12 }}>
+      <input
+        style={profIn} placeholder="Card number" type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={19}
+        value={num} autoComplete="cc-number"
+        onChange={e => {
+          const v = e.target.value.replace(/\D/g,"").slice(0,16);
+          const fmt = v.match(/.{1,4}/g)?.join(" ") || v;
+          if (fmt !== num) { setNum(fmt); if (v.length === 16) expRef.current?.focus(); }
+        }}
+      />
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <input
+          ref={expRef} style={{ ...profIn, flex: 1 }} placeholder="MM/YY" type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={5}
+          value={exp} autoComplete="cc-exp"
+          onChange={e => {
+            let v = e.target.value.replace(/\D/g,"").slice(0,4);
+            if (v.length > 2) v = v.slice(0,2) + "/" + v.slice(2);
+            if (v !== exp) { setExp(v); if (v.length === 5) cvcRef.current?.focus(); }
+          }}
+        />
+        <input
+          ref={cvcRef} style={{ ...profIn, flex: 1 }} placeholder="CVC" type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4}
+          value={cvc} autoComplete="cc-csc"
+          onChange={e => { const v = e.target.value.replace(/\D/g,"").slice(0,4); if (v !== cvc) setCvc(v); }}
+        />
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <button style={{ background: "#f0f0ee", color: "#1a1a1a", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 1 }} onClick={onCancel}>Cancel</button>
+        <button style={{ background: "#2D8A5E", color: "#fff", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 2 }} onClick={() => onSave({ num, exp, cvc })}>Save Card</button>
+      </div>
+    </div>
+  );
+});
+
 export default function BirdieGolfWebsite() {
   const width = useWidth();
   const isMobile = width < 640;
@@ -1170,39 +1211,10 @@ export default function BirdieGolfWebsite() {
       <div style={S.sec}><h4 style={S.secL}>Payment Methods</h4>
         {cards.map(c => <div key={c.id} style={S.fRow}><div style={{ flex: 1 }}><p style={{ fontSize: 14, fontWeight: 600 }}>{c.brand} ····{c.last4}</p><p style={{ fontSize: 11, color: "#888" }}>Exp {c.exp}</p></div>
           {cards.length > 1 ? <button style={S.delCardBtn} onClick={() => { setCards(p => p.filter(x => x.id !== c.id)); fire("Card removed"); }}>{X.trash(14)}</button> : <span style={{ fontSize: 10, color: "#aaa", fontWeight: 600 }}>Required</span>}</div>)}
-        {addCard ? <div style={{ marginTop: 12 }}>
-          <input
-            style={S.profIn} placeholder="Card number" type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={19}
-            value={newCard.num}
-            onChange={e => {
-              const v = e.target.value.replace(/\D/g,"").slice(0,16);
-              const fmt = v.match(/.{1,4}/g)?.join(" ") || v;
-              if (fmt !== newCard.num) { setNewCard(p => ({ ...p, num: fmt })); if (v.length === 16) cardExpRef.current?.focus(); }
-            }}
-          />
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <input
-              ref={cardExpRef} style={{ ...S.profIn, flex: 1 }} placeholder="MM/YY" type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={5}
-              value={newCard.exp}
-              onChange={e => {
-                let v = e.target.value.replace(/\D/g,"").slice(0,4);
-                if (v.length > 2) v = v.slice(0,2) + "/" + v.slice(2);
-                if (v !== newCard.exp) { setNewCard(p => ({ ...p, exp: v })); if (v.length === 5) cardCvcRef.current?.focus(); }
-              }}
-            />
-            <input
-              ref={cardCvcRef} style={{ ...S.profIn, flex: 1 }} placeholder="CVC" type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4}
-              value={newCard.cvc}
-              onChange={e => {
-                const v = e.target.value.replace(/\D/g,"").slice(0,4);
-                if (v !== newCard.cvc) setNewCard(p => ({ ...p, cvc: v }));
-              }}
-            />
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}><button style={S.b2} onClick={() => { setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); }}>Cancel</button><button style={{ ...S.b1, flex: 2 }} onClick={async () => {
-            const rawNum = newCard.num.replace(/\D/g, "");
-            const rawExp = newCard.exp.replace(/\D/g, "");
-            const rawCvc = newCard.cvc.replace(/\D/g, "");
+        {addCard ? <AddCardForm profIn={S.profIn} onCancel={() => setAddCard(false)} onSave={async ({ num, exp, cvc }) => {
+            const rawNum = num.replace(/\D/g, "");
+            const rawExp = exp.replace(/\D/g, "");
+            const rawCvc = cvc.replace(/\D/g, "");
             // Validate card number (Luhn algorithm)
             const luhn = n => { let s=0,d=false; for(let i=n.length-1;i>=0;i--){let v=+n[i];if(d&&(v*=2)>9)v-=9;s+=v;d=!d;}return s%10===0; };
             if (rawNum.length < 15 || rawNum.length > 16) { fire("Invalid card number"); return; }
@@ -1222,11 +1234,11 @@ export default function BirdieGolfWebsite() {
               source_id: "cnon:card-nonce-ok", // sandbox test nonce — replace with Web Payments SDK nonce in production
             });
             const sqCardId = sqResult?.card?.id || null;
-            const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp: newCard.exp, square_card_id: sqCardId });
+            const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: sqCardId });
             const savedId = Array.isArray(saved) ? saved[0]?.id : saved?.id;
-            setCards(p => [...p, { id: savedId || Date.now(), brand, last4, exp: newCard.exp, square_card_id: sqCardId }]);
-            setAddCard(false); setNewCard({ num: "", exp: "", cvc: "" }); fire("Card added"); setTab("home");
-          }}>Save Card</button></div></div>
+            setCards(p => [...p, { id: savedId || Date.now(), brand, last4, exp, square_card_id: sqCardId }]);
+            setAddCard(false); fire("Card added"); setTab("home");
+          }} />
         : <button style={S.addCardBtn} onClick={() => setAddCard(true)}>{X.plus(14)} Add Card</button>}
       </div>
     </div>
