@@ -1127,7 +1127,7 @@ export default function BirdieGolfWebsite() {
             {td.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}><span style={{ color: "#2D8A5E" }}>{X.chk(16)}</span><span style={{ fontSize: 13 }}>{p}</span></div>)}</div>
         </div>
         <div style={S.detailCard}><h4 style={S.detailH}>Cancellation Policy</h4>
-          <p style={{ fontSize: 12, color: "#555", lineHeight: 1.6, marginBottom: 12 }}>Next renewal: {renewDate}. 7-day cancellation notice required. Cancellations within 7 days of renewal are charged for the next cycle.</p>
+          <p style={{ fontSize: 12, color: "#555", lineHeight: 1.6, marginBottom: 12 }}>Next renewal: {renewDate}. Cancelling more than 7 days before renewal — access continues through {renewDate}. Cancelling within 7 days — one final charge applies on {renewDate}, with access through the following cycle.</p>
           <button style={{ ...S.b1, background: "#E03928" }} onClick={() => setMemModal("cancel")}>Cancel Membership</button></div>
       </>}
 
@@ -1146,29 +1146,31 @@ export default function BirdieGolfWebsite() {
         const rd = renewDate ? new Date(renewDate) : null;
         const daysToRenewal = rd ? Math.ceil((rd - today) / 86400000) : 999;
         const withinWindow = daysToRenewal >= 0 && daysToRenewal <= 7;
+        const nextRd = rd ? new Date(rd) : null;
+        if (nextRd) nextRd.setMonth(nextRd.getMonth() + 1);
+        const nextRdStr = nextRd ? nextRd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "";
         return <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
           <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Cancel Membership?</h3>
           {withinWindow ? (
             <div style={{ background: "#FFF8E8", border: "1px solid #E8890C44", borderRadius: 10, padding: 14, marginBottom: 16 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: "#E8890C", marginBottom: 6 }}>⚠️ Within 7-Day Renewal Window</p>
-              <p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Your renewal date is {renewDate} — within 7 days. Your {td?.n} membership <strong>will renew this cycle</strong> but <strong>will not auto-renew after that</strong>.</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "#E8890C", marginBottom: 6 }}>Within 7-Day Renewal Window</p>
+              <p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Your renewal date is {renewDate} — within 7 days. Your membership will be <strong>charged one final time</strong> on {renewDate}, and you retain full access and credits through <strong>{nextRdStr}</strong>. After that, your membership ends and no further charges occur.</p>
             </div>
           ) : (
-            <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 16 }}>Your {td?.n} membership will be <strong>cancelled immediately</strong>. Access ends today.</p>
+            <div style={{ background: "#F5F5F5", border: "1px solid #e8e8e6", borderRadius: 10, padding: 14, marginBottom: 16 }}>
+              <p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>You retain full access to your {td?.n} benefits and credits through your current renewal date — <strong>{renewDate}</strong>. After that, your membership ends and you will not be charged again.</p>
+            </div>
           )}
           <div style={{ display: "flex", gap: 10 }}>
             <button style={S.b2} onClick={() => setMemModal(null)}>Keep Plan</button>
             <button style={{ ...S.b1, flex: 2, background: "#E03928" }} onClick={async () => {
               await sb.post("membership_history", { customer_id: customerId, action: "cancel", tier, amount: 0, date: dateKey(new Date()) });
-              await sb.post("transactions", { customer_id: customerId, description: (withinWindow ? "Membership Cancellation Scheduled — " : "Membership Cancelled — ") + (td?.n || "") + " Plan", date: dateKey(new Date()), amount: 0, payment_label: "System" });
-              if (!withinWindow) {
-                await sb.patch("customers", `id=eq.${customerId}`, { tier: "none", bay_credits_remaining: 0 });
-                setTier("none"); setBayCredits(0);
-              }
-              try { await fetch(SQUARE_FN_URL, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` }, body: JSON.stringify({ action: "email.cancellation", customer_id: customerId, tier: td?.n, renewal_date: renewDate, within_window: withinWindow }) }); } catch(e) { console.warn("Email failed", e); }
-              fire(withinWindow ? "Cancellation scheduled after " + renewDate : "Membership cancelled");
+              await sb.post("transactions", { customer_id: customerId, description: "Membership Cancellation Scheduled — " + (td?.n || "") + " Plan", date: dateKey(new Date()), amount: 0, payment_label: "System" });
+              // In both cases, member retains access until renewal date (or next renewal if within window)
+              // Tier is NOT changed here — admin/backend handles expiry at renewal date
+              fire(withinWindow ? "Cancellation scheduled. Access continues through " + nextRdStr : "Cancellation scheduled. Access continues through " + renewDate);
               setMemModal(null);
-            }}>{withinWindow ? "Schedule Cancellation" : "Confirm Cancel"}</button>
+            }}>Schedule Cancellation</button>
           </div>
         </div></div>;
       })()}
