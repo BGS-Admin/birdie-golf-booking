@@ -1073,7 +1073,7 @@ export default function BirdieGolfWebsite() {
             <button style={{ ...S.b1, background: "#5B6DCD", marginTop: 14 }} onClick={async () => {
               const today = new Date(), expDate = new Date(today); expDate.setMonth(expDate.getMonth() + 3);
               const fmtShort = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-              await sb.post("lesson_packages", { customer_id: customerId, name: selPkg.name, total_credits: selPkg.credits, remaining_credits: selPkg.credits, coach_id: pkgCoach, coach_name: coach?.n, price: selPkg.price, expiry_date: dateKey(expDate) });
+              await sb.post("lesson_packages", { customer_id: customerId, name: selPkg.name, total_credits: selPkg.credits, remaining_credits: selPkg.credits, coach_id: pkgCoach, coach_name: coach?.n, price: selPkg.price, expiry_date: dateKey(expDate), status: "active", purchase_date: dateKey(today) });
               await sb.post("transactions", { customer_id: customerId, description: selPkg.name + " · " + coach?.n, date: dateKey(today), amount: selPkg.price, payment_label: "Visa ····4242" });
               setTotL(selPkg.credits); setMaxL(selPkg.credits); setCreditCoachId(pkgCoach); setCreditPkg(selPkg.name); setCreditPurchaseDate(fmtShort(today)); setCreditExp(fmtShort(expDate)); setCreditUsage([]);
               setTransactions(p => [{ desc: selPkg.name + " · " + coach?.n, date: fmtShort(today), method: "Visa ····4242", amt: "$" + selPkg.price + ".00" }, ...p]);
