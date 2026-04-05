@@ -1000,7 +1000,7 @@ export default function BirdieGolfWebsite() {
         <button style={{ ...S.b1, background: "#E03928", maxWidth: 180, fontSize: 13, padding: "10px 14px" }} onClick={() => setTab("profile")}>Add Card</button>
       </div>}
       {hasCard && <div style={S.tabs}>
-        {["book", "credits"].map(t => <button key={t} style={{ ...S.tabBtn, ...(lesTab === t ? S.tabSel : {}) }} onClick={() => { setLesTab(t); setSelPkg(null); setPkgCoach(null); }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
+        {["book", "packages"].map(t => <button key={t} style={{ ...S.tabBtn, ...(lesTab === t ? S.tabSel : {}) }} onClick={() => { setLesTab(t); setSelPkg(null); setPkgCoach(null); }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
       </div>}
 
       {hasCard && lesTab === "book" && <>
@@ -1046,7 +1046,7 @@ export default function BirdieGolfWebsite() {
         }}>Continue to Confirm</button>}
       </>}
 
-      {hasCard && lesTab === "credits" && <>
+      {hasCard && lesTab === "packages" && <>
         {totL > 0 ? <>
           <div style={S.creditDetailCard}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><p style={{ fontSize: 15, fontWeight: 700 }}>{creditPkg}</p><span style={{ background: "#5B6DCD", color: "#fff", fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 10 }}>{totL}/{maxL}</span></div>
