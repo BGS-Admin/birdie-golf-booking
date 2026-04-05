@@ -395,7 +395,7 @@ export default function BirdieGolfWebsite() {
     if (custData?.[0]) {
       const c = custData[0];
       setTier(c.tier || "none");
-      setBayCredits(c.bay_credits_remaining || 0);
+      setBayCredits(c.tier === "player" ? Math.min(c.bay_credits_remaining || 0, 8) : (c.bay_credits_remaining || 0));
       if (c.renewal_date) setRenewDate(new Date(c.renewal_date + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
       if (c.member_since) setMemberSince(new Date(c.member_since + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
     }
@@ -575,7 +575,7 @@ export default function BirdieGolfWebsite() {
             setProfPhone(cust.phone || "");
             setProfEmail(cust.email || "");
             setTier(cust.tier || "none");
-            setBayCredits(cust.bay_credits_remaining || 0);
+            setBayCredits(cust.tier === "player" ? Math.min(cust.bay_credits_remaining || 0, 8) : (cust.bay_credits_remaining || 0));
             if (cust.renewal_date) setRenewDate(new Date(cust.renewal_date + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
             if (cust.member_since) setMemberSince(new Date(cust.member_since + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
             loadUserData(cust.id);
@@ -1180,7 +1180,7 @@ export default function BirdieGolfWebsite() {
           await sb.patch("customers", `id=eq.${customerId}`, { tier: memModal.to });
           await sb.post("membership_history", { customer_id: customerId, action: Object.keys(TIERS).indexOf(memModal.to) > Object.keys(TIERS).indexOf(tier) ? "upgrade" : "downgrade", tier: memModal.to, amount: TIERS[memModal.to]?.price });
           const newTier = memModal.to; const newPrice = TIERS[newTier]?.price || 0;
-          setTier(newTier); setBayCredits(TIERS[newTier]?.hrs === -1 ? 999 : TIERS[newTier]?.hrs || 0);
+          setTier(newTier); setBayCredits(newTier === "player" ? Math.min(TIERS[newTier]?.hrs || 0, 8) : TIERS[newTier]?.hrs === -1 ? 999 : TIERS[newTier]?.hrs || 0);
           const todayStr = new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
           setMemberSince(todayStr); const rd=new Date(); rd.setMonth(rd.getMonth()+1); setRenewDate(rd.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}));
           await sb.post("transactions", { customer_id: customerId, description: TIERS[newTier]?.n + " Membership", date: dateKey(new Date()), amount: newPrice, payment_label: "Visa ····4242" });
@@ -1413,7 +1413,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
 
       // Refund credits if any were used
       if (creditsUsed > 0 && isMember) {
-        const newCredits = bayCredits + creditsUsed;
+        const newCredits = tier === "player" ? Math.min(bayCredits + creditsUsed, 8) : bayCredits + creditsUsed;
         await sb.patch("customers", `id=eq.${customerId}`, { bay_credits_remaining: newCredits });
         setBayCredits(newCredits);
         await sb.post("transactions", {
