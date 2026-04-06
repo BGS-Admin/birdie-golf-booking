@@ -358,7 +358,7 @@ export default function BirdieGolfWebsite() {
   const creditCoach = COACHES.find(c => c.id === creditCoachId);
   const tierData = TIERS[tier] || null;
   const resetBk = () => { setBkStep(0); setBkDate(null); setBkDur(null); setBkTime(null); setBkBay(null); setBkAgree(false); };
-  const hasCard = cards.length > 0;
+  const hasCard = true; // Card requirement temporarily disabled
   const resetLes = () => { setLesStep(0); setLesDate(null); setLesTime(null); setLesCoach(null); setLesAgree(false); };
 
   /* ─── Load data from Supabase on mount ─── */
