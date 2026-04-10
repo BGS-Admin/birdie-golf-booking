@@ -78,7 +78,7 @@ const X = {
 /* ─── Business Constants ─── */
 const TIERS = {
   starter: { n: "Starter", c: "#4A8B6E", badge: "STR", price: 45, hrs: 0, disc: 0.20, perks: ["20% off hourly bay rate"] },
-  player: { n: "Player", c: "#2D8A5E", badge: "PLR", price: 200, hrs: 8, disc: 0.20, perks: ["8 hrs bay rental/mo", "20% off additional hours", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
+  player: { n: "Player", c: "#2D8A5E", badge: "PLR", price: 200, hrs: 8, disc: 0.20, enrollmentFee: 75, perks: ["8 hrs bay rental/mo", "20% off additional hours", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
   champion: { n: "Champion", c: "#124A2B", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited bay rental (max 2hr/booking)", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
 };
 
@@ -1137,7 +1137,10 @@ export default function BirdieGolfWebsite() {
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><span style={{ background: t.c, color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontFamily: mono, letterSpacing: 1 }}>{t.badge}</span><span style={{ fontSize: 16, fontWeight: 700 }}>{t.n}</span></div>
           <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>${t.price}<span style={{ fontSize: 13, color: "#888", fontWeight: 400 }}>/mo</span></p>
           {t.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}><span style={{ color: t.c, flexShrink: 0 }}>{X.chk(14)}</span><span style={{ fontSize: 12 }}>{p}</span></div>)}
-          <div style={{ marginTop: 14 }}>{k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span> : hasCard ? <button style={{ ...S.b1, background: t.c }} onClick={() => setMemModal({ type: "switch", to: k })}>{Object.keys(TIERS).indexOf(k) > Object.keys(TIERS).indexOf(tier) ? "Upgrade" : "Switch"}</button> : <button style={{ ...S.b1, background: "#ccc" }} onClick={() => setTab("profile")}>Add Card First</button>}</div>
+          {t.enrollmentFee && (!tier || tier === "none") && (
+            <p style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>A one-time Enrollment Fee of ${t.enrollmentFee} is required at sign-up.</p>
+          )}
+          <div style={{ marginTop: 14 }}>{k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span> : hasCard ? <button style={{ ...S.b1, background: t.c }} onClick={() => setMemModal({ type: (!tier || tier === "none") ? "join" : "switch", to: k })}>{(!tier || tier === "none") ? "Get Started" : Object.keys(TIERS).indexOf(k) > Object.keys(TIERS).indexOf(tier) ? "Upgrade" : "Switch"}</button> : <button style={{ ...S.b1, background: "#ccc" }} onClick={() => setTab("profile")}>Add Card First</button>}</div>
         </div>)}
       </div>}
 
@@ -1172,6 +1175,78 @@ export default function BirdieGolfWebsite() {
               setMemModal(null);
             }}>Schedule Cancellation</button>
           </div>
+        </div></div>;
+      })()}
+
+      {memModal?.type === "join" && (() => {
+        const t = TIERS[memModal.to];
+        const ef = t?.enrollmentFee || 0;
+        const total = (t?.price || 0) + ef;
+        const cardLabel = cards?.[0] ? (cards[0].brand + " ····" + cards[0].last4) : "card on file";
+        const sqCardId = cards?.[0]?.square_card_id;
+        return <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{t?.n} Membership</h3>
+          <p style={{ fontSize: 13, color: "#555", marginBottom: 16 }}>You're joining the {t?.n} plan. Here's what you'll be charged today:</p>
+          <div style={{ background: "#f7f7f5", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: "#555" }}>First Month ({t?.n})</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>${t?.price}.00</span>
+            </div>
+            {ef > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: "#555" }}>One-time Enrollment Fee</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>${ef}.00</span>
+            </div>}
+            <div style={{ borderTop: "1px solid #e8e8e6", marginTop: 8, paddingTop: 10, display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>Total Due Today</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: t?.c }}>${total}.00</span>
+            </div>
+          </div>
+          <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}. Renews monthly at ${t?.price}/mo.</p>
+          <div style={{ display: "flex", gap: 10 }}><button style={S.b2} onClick={() => setMemModal(null)}>Cancel</button><button style={{ ...S.b1, flex: 2, background: t?.c }} onClick={async () => {
+            // Charge total (first month + enrollment fee) via Square
+            let sqPaymentId = null;
+            if (total > 0 && sqCustId && sqCardId) {
+              const payment = await square("payment.create", {
+                square_customer_id: sqCustId,
+                card_id: sqCardId,
+                amount: total,
+                note: `${t?.n} Membership — First Month + Enrollment Fee`,
+              });
+              sqPaymentId = payment?.payment?.id;
+            }
+            // Update customer tier in Supabase
+            const rd = new Date(); rd.setMonth(rd.getMonth() + 1);
+            await sb.patch("customers", `id=eq.${customerId}`, {
+              tier: memModal.to,
+              bay_credits_remaining: t?.hrs === -1 ? 999 : (t?.hrs || 0),
+              bay_credits_total: t?.hrs === -1 ? 999 : (t?.hrs || 0),
+              member_since: dateKey(new Date()),
+              renewal_date: dateKey(rd),
+            });
+            await sb.post("membership_history", { customer_id: customerId, action: "join", tier: memModal.to, amount: total, date: dateKey(new Date()) });
+            // Log first month and enrollment fee as separate transactions
+            await sb.post("transactions", { customer_id: customerId, description: t?.n + " Membership — First Month", date: dateKey(new Date()), amount: t?.price, payment_label: cardLabel, square_payment_id: sqPaymentId });
+            if (ef > 0) await sb.post("transactions", { customer_id: customerId, description: t?.n + " Enrollment Fee (one-time)", date: dateKey(new Date()), amount: ef, payment_label: cardLabel, square_payment_id: sqPaymentId });
+            // Update local state
+            setTier(memModal.to);
+            setBayCredits(t?.hrs === -1 ? 999 : (t?.hrs || 0));
+            const todayStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+            setMemberSince(todayStr);
+            setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+            setTransactions(p => [
+              { desc: t?.n + " Enrollment Fee (one-time)", date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), method: cardLabel, amt: "$" + ef + ".00" },
+              { desc: t?.n + " Membership — First Month", date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), method: cardLabel, amt: "$" + (t?.price) + ".00" },
+              ...p
+            ]);
+            sendEmail("membership", {
+              customer_name: onbF + " " + onbL,
+              customer_email: profEmail || onbE,
+              plan: t?.n + " Plan",
+              price: "$" + t?.price + "/mo",
+              renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+            });
+            fire("Welcome to " + t?.n + "! 🎉"); setMemModal(null); setMemTab("current");
+          }}>Confirm & Pay ${total}</button></div>
         </div></div>;
       })()}
 
