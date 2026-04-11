@@ -166,18 +166,29 @@ function getAllTimes(dt, durSlots, bayBlocks, realBookings) {
 /* Pricing */
 function isPeak(dt, slot) { return !isWeekend(dt) && toH(slot) >= 17; }
 function slotRate(dt, slot, cfg) { return isWeekend(dt) ? cfg.wk : isPeak(dt, slot) ? cfg.pk : cfg.op; }
+const TAX_RATE = 0.07;
+const applyTax = (subtotal) => Math.round(subtotal * TAX_RATE * 100) / 100;
+
 function calcPrice(dt, startSlot, durSlots, tier, bayCredits, cfg) {
   const hrs = getHours(dt), si = hrs.indexOf(startSlot), needed = hrs.slice(si, si + durSlots), durHrs = durSlots * 0.5;
-  if (tier === "champion") return { total: 0, disc: 0, credits: durHrs, base: 0 };
+  if (tier === "champion") return { total: 0, disc: 0, credits: durHrs, base: 0, tax: 0, subtotal: 0 };
   let base = 0; needed.forEach(s => { base += slotRate(dt, s, cfg) * 0.5; });
   if (tier === "player") {
     const credHrs = Math.min(bayCredits, durHrs), credSlots = credHrs * 2;
     let paidBase = 0; needed.slice(credSlots).forEach(s => { paidBase += slotRate(dt, s, cfg) * 0.5; });
     const disc = paidBase * 0.20;
-    return { total: paidBase - disc, disc, credits: credHrs, base };
+    const subtotal = paidBase - disc;
+    const tax = applyTax(subtotal);
+    return { total: subtotal + tax, disc, credits: credHrs, base, tax, subtotal };
   }
-  if (tier === "starter") { const disc = base * 0.20; return { total: base - disc, disc, credits: 0, base }; }
-  return { total: base, disc: 0, credits: 0, base };
+  if (tier === "starter") {
+    const disc = base * 0.20;
+    const subtotal = base - disc;
+    const tax = applyTax(subtotal);
+    return { total: subtotal + tax, disc, credits: 0, base, tax, subtotal };
+  }
+  const tax = applyTax(base);
+  return { total: base + tax, disc: 0, credits: 0, base, tax, subtotal: base };
 }
 
 function lessonPrice(tier, hasCredits, creditCoachId, selCoach) {
@@ -430,9 +441,15 @@ export default function BirdieGolfWebsite() {
     // 1. Charge via Square (if amount > 0 and customer has Square profile)
     let sqPaymentId = null;
     if (bookingData.total > 0 && sqCustId) {
+      // 1a. Create Square Order with tax so it's recognized in Square reports
+      const orderLineItems = [{ name: `Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.durSlots * 0.5}hr`, amount: bookingData.subtotal }];
+      const order = await square("order.create", { square_customer_id: sqCustId, line_items: orderLineItems });
+      const orderId = order?.order?.id;
+      // 1b. Charge the order total (subtotal + tax) via Square
       const payment = await square("payment.create", {
         square_customer_id: sqCustId,
         amount: bookingData.total,
+        order_id: orderId,
         note: `Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.durSlots * 0.5}hr`,
       });
       sqPaymentId = payment?.payment?.id;
@@ -821,6 +838,7 @@ export default function BirdieGolfWebsite() {
               {[["Date", fmtDateLong(bkDate)], ["Duration", durHrs + " hr" + (durHrs > 1 ? "s" : "")], ["Time", bkTime], ["Bay", "Bay " + bkBay]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
               {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>Credits Used</span><span style={{ ...S.confV, color: "#2D8A5E" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
               {price.disc > 0 && <div style={S.confRow}><span style={S.confL}>Member Discount</span><span style={{ ...S.confV, color: "#2D8A5E" }}>-${price.disc.toFixed(2)}</span></div>}
+              {price.tax > 0 && <div style={S.confRow}><span style={S.confL}>Tax (7%)</span><span style={S.confV}>${price.tax.toFixed(2)}</span></div>}
               <div style={S.confDiv} />
               <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700 }}>${price.total.toFixed(2)}</span></div>
             </div>
@@ -917,6 +935,7 @@ export default function BirdieGolfWebsite() {
           </div>
           {price.credits > 0 && <p style={{ fontSize: 11, color: "#2D8A5E", marginTop: 4 }}>{price.credits} hr credit{price.credits > 1 ? "s" : ""} applied</p>}
           {price.disc > 0 && <p style={{ fontSize: 11, color: "#2D8A5E", marginTop: 2 }}>Member discount: -${price.disc.toFixed(2)}</p>}
+          {price.tax > 0 && <p style={{ fontSize: 11, color: "#888", marginTop: 2 }}>Includes ${price.tax.toFixed(2)} tax (7%)</p>}
         </div>;
       })()}
       {bkDate && bkDur && bkTime && bkBay && <button style={{ ...S.b1, marginTop: 14 }} onClick={() => {
@@ -1181,7 +1200,9 @@ export default function BirdieGolfWebsite() {
       {memModal?.type === "join" && (() => {
         const t = TIERS[memModal.to];
         const ef = t?.enrollmentFee || 0;
-        const total = (t?.price || 0) + ef;
+        const subtotal = (t?.price || 0) + ef;
+        const tax = applyTax(subtotal);
+        const total = subtotal + tax;
         const cardLabel = cards?.[0] ? (cards[0].brand + " ····" + cards[0].last4) : "card on file";
         const sqCardId = cards?.[0]?.square_card_id;
         return <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
@@ -1196,20 +1217,30 @@ export default function BirdieGolfWebsite() {
               <span style={{ fontSize: 13, color: "#555" }}>One-time Enrollment Fee</span>
               <span style={{ fontSize: 13, fontWeight: 600 }}>${ef}.00</span>
             </div>}
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: "#555" }}>Tax (7%)</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>${tax.toFixed(2)}</span>
+            </div>
             <div style={{ borderTop: "1px solid #e8e8e6", marginTop: 8, paddingTop: 10, display: "flex", justifyContent: "space-between" }}>
               <span style={{ fontSize: 14, fontWeight: 700 }}>Total Due Today</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: t?.c }}>${total}.00</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: t?.c }}>${total.toFixed(2)}</span>
             </div>
           </div>
-          <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}. Renews monthly at ${t?.price}/mo.</p>
+          <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}. Renews monthly at ${t?.price}/mo + tax.</p>
           <div style={{ display: "flex", gap: 10 }}><button style={S.b2} onClick={() => setMemModal(null)}>Cancel</button><button style={{ ...S.b1, flex: 2, background: t?.c }} onClick={async () => {
-            // Charge total (first month + enrollment fee) via Square
+            // Charge total (first month + enrollment fee + tax) via Square
             let sqPaymentId = null;
             if (total > 0 && sqCustId && sqCardId) {
+              // Build order line items (first month + enrollment fee separately so Square sees them)
+              const memLineItems = [{ name: `${t?.n} Membership — First Month`, amount: t?.price || 0 }];
+              if (ef > 0) memLineItems.push({ name: `${t?.n} Enrollment Fee (one-time)`, amount: ef });
+              const order = await square("order.create", { square_customer_id: sqCustId, line_items: memLineItems });
+              const orderId = order?.order?.id;
               const payment = await square("payment.create", {
                 square_customer_id: sqCustId,
                 card_id: sqCardId,
                 amount: total,
+                order_id: orderId,
                 note: `${t?.n} Membership — First Month + Enrollment Fee`,
               });
               sqPaymentId = payment?.payment?.id;
@@ -1224,9 +1255,10 @@ export default function BirdieGolfWebsite() {
               renewal_date: dateKey(rd),
             });
             await sb.post("membership_history", { customer_id: customerId, action: "join", tier: memModal.to, amount: total, date: dateKey(new Date()) });
-            // Log first month and enrollment fee as separate transactions
+            // Log first month, enrollment fee, and tax as separate transactions
             await sb.post("transactions", { customer_id: customerId, description: t?.n + " Membership — First Month", date: dateKey(new Date()), amount: t?.price, payment_label: cardLabel, square_payment_id: sqPaymentId });
             if (ef > 0) await sb.post("transactions", { customer_id: customerId, description: t?.n + " Enrollment Fee (one-time)", date: dateKey(new Date()), amount: ef, payment_label: cardLabel, square_payment_id: sqPaymentId });
+            await sb.post("transactions", { customer_id: customerId, description: "Tax (7%)", date: dateKey(new Date()), amount: tax, payment_label: cardLabel, square_payment_id: sqPaymentId });
             // Update local state
             setTier(memModal.to);
             setBayCredits(t?.hrs === -1 ? 999 : (t?.hrs || 0));
@@ -1234,6 +1266,7 @@ export default function BirdieGolfWebsite() {
             setMemberSince(todayStr);
             setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
             setTransactions(p => [
+              { desc: "Tax (7%)", date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), method: cardLabel, amt: "$" + tax.toFixed(2) },
               { desc: t?.n + " Enrollment Fee (one-time)", date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), method: cardLabel, amt: "$" + ef + ".00" },
               { desc: t?.n + " Membership — First Month", date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), method: cardLabel, amt: "$" + (t?.price) + ".00" },
               ...p
@@ -1246,7 +1279,7 @@ export default function BirdieGolfWebsite() {
               renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
             });
             fire("Welcome to " + t?.n + "! 🎉"); setMemModal(null); setMemTab("current");
-          }}>Confirm & Pay ${total}</button></div>
+          }}>Confirm & Pay ${total.toFixed(2)}</button></div>
         </div></div>;
       })()}
 
