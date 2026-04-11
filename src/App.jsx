@@ -77,9 +77,10 @@ const X = {
 
 /* ─── Business Constants ─── */
 const TIERS = {
-  starter: { n: "Starter", c: "#4A8B6E", badge: "STR", price: 45, hrs: 0, disc: 0.20, perks: ["20% off hourly bay rate"] },
-  player: { n: "Player", c: "#2D8A5E", badge: "PLR", price: 200, hrs: 8, disc: 0.20, enrollmentFee: 75, perks: ["8 hrs bay rental/mo", "20% off additional hours", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
-  champion: { n: "Champion", c: "#124A2B", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited bay rental (max 2hr/booking)", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
+  starter:      { n: "Starter",      c: "#4A8B6E", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate"] },
+  early_birdie: { n: "Early Birdie", c: "#E8890C", badge: "EBD", price: 150, hrs: -1, enrollmentFee: 50, perks: ["Unlimited bay access Mon-Fri 7am-4pm", "Full rate applies outside those hours", "Members-only events"] },
+  player:       { n: "Player",       c: "#2D8A5E", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hrs bay rental/mo", "20% off additional hours", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
+  champion:     { n: "Champion",     c: "#124A2B", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited bay rental (max 2hr/booking)", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
 };
 
 /* Default: coaches available all operating hours. Admin updates override via Supabase. */
@@ -173,6 +174,18 @@ function calcPrice(dt, startSlot, durSlots, tier, bayCredits, cfg) {
   const hrs = getHours(dt), si = hrs.indexOf(startSlot), needed = hrs.slice(si, si + durSlots), durHrs = durSlots * 0.5;
   if (tier === "champion") return { total: 0, disc: 0, credits: durHrs, base: 0, tax: 0, subtotal: 0 };
   let base = 0; needed.forEach(s => { base += slotRate(dt, s, cfg) * 0.5; });
+  if (tier === "early_birdie") {
+    // Free Mon-Fri 7am-3:59am; slots starting at 16.0 (4pm) or later on weekdays cost full rate; all weekend slots cost full rate
+    let freeHrs = 0, paidBase = 0;
+    needed.forEach(s => {
+      const h = toH(s);
+      if (!isWeekend(dt) && h < 16) { freeHrs += 0.5; }
+      else { paidBase += slotRate(dt, s, cfg) * 0.5; }
+    });
+    const subtotal = paidBase;
+    const tax = applyTax(subtotal);
+    return { total: subtotal + tax, disc: 0, credits: freeHrs, base, tax, subtotal };
+  }
   if (tier === "player") {
     const credHrs = Math.min(bayCredits, durHrs), credSlots = credHrs * 2;
     let paidBase = 0; needed.slice(credSlots).forEach(s => { paidBase += slotRate(dt, s, cfg) * 0.5; });
@@ -441,15 +454,9 @@ export default function BirdieGolfWebsite() {
     // 1. Charge via Square (if amount > 0 and customer has Square profile)
     let sqPaymentId = null;
     if (bookingData.total > 0 && sqCustId) {
-      // 1a. Create Square Order with tax so it's recognized in Square reports
-      const orderLineItems = [{ name: `Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.durSlots * 0.5}hr`, amount: bookingData.subtotal }];
-      const order = await square("order.create", { square_customer_id: sqCustId, line_items: orderLineItems });
-      const orderId = order?.order?.id;
-      // 1b. Charge the order total (subtotal + tax) via Square
       const payment = await square("payment.create", {
         square_customer_id: sqCustId,
         amount: bookingData.total,
-        order_id: orderId,
         note: `Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.durSlots * 0.5}hr`,
       });
       sqPaymentId = payment?.payment?.id;
@@ -779,6 +786,7 @@ export default function BirdieGolfWebsite() {
               <p style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginTop: 6 }}>{tierData.n} Plan</p>
               <p style={{ fontSize: 12, color: "#ffffffbb" }}>${tierData.price}/mo</p>
               {tier === "player" && <div style={{ marginTop: 10 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}><span style={{ fontSize: 10, color: "#ffffffbb" }}>Bay Hours</span><span style={{ fontSize: 10, color: "#fff", fontWeight: 600 }}>{bayCredits}/{TIERS.player.hrs}</span></div><div style={{ ...S.bar, background: "#ffffff33" }}><div style={{ ...S.barF, width: (bayCredits / 8 * 100) + "%", background: "#fff" }} /></div></div>}
+              {tier === "early_birdie" && <p style={{ fontSize: 11, color: "#ffffffcc", marginTop: 8 }}>Unlimited Mon-Fri 7am-4pm</p>}
               {tier === "champion" && <p style={{ fontSize: 11, color: "#ffffffcc", marginTop: 8 }}>Unlimited Bay Access</p>}
             </div>
           )}
@@ -836,7 +844,7 @@ export default function BirdieGolfWebsite() {
           <div>
             <div style={S.confCard}>
               {[["Date", fmtDateLong(bkDate)], ["Duration", durHrs + " hr" + (durHrs > 1 ? "s" : "")], ["Time", bkTime], ["Bay", "Bay " + bkBay]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
-              {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>Credits Used</span><span style={{ ...S.confV, color: "#2D8A5E" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
+              {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{tier === "early_birdie" ? "Free Window" : "Credits Used"}</span><span style={{ ...S.confV, color: tier === "early_birdie" ? "#E8890C" : "#2D8A5E" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
               {price.disc > 0 && <div style={S.confRow}><span style={S.confL}>Member Discount</span><span style={{ ...S.confV, color: "#2D8A5E" }}>-${price.disc.toFixed(2)}</span></div>}
               {price.tax > 0 && <div style={S.confRow}><span style={S.confL}>Tax (7%)</span><span style={S.confV}>${price.tax.toFixed(2)}</span></div>}
               <div style={S.confDiv} />
@@ -874,6 +882,7 @@ export default function BirdieGolfWebsite() {
         <button style={{ ...S.b1, background: "#E03928", maxWidth: 180, fontSize: 13, padding: "10px 14px" }} onClick={() => setTab("profile")}>Add Card</button>
       </div>}
       {tier === "champion" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#124A2B" }}>Unlimited · Max 2hrs/booking</span></div>}
+      {tier === "early_birdie" && <div style={{ ...S.creditBanner, borderColor: "#E8890C33", background: "#E8890C08" }}><span style={{ fontSize: 13, fontWeight: 600, color: "#E8890C" }}>Unlimited Mon-Fri 7am-4pm · Full rate outside window</span></div>}
       {tier === "player" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#2D8A5E" }}>{bayCredits > 0 ? bayCredits + " hrs of credits remaining this cycle" : "No bay credits remaining this cycle"}</span></div>}
 
       {hasCard && <><h4 style={S.stepH}>Select Date</h4>
@@ -934,6 +943,7 @@ export default function BirdieGolfWebsite() {
             <span style={{ fontSize: 16, fontWeight: 700, color: "#2D8A5E" }}>${price.total.toFixed(2)}</span>
           </div>
           {price.credits > 0 && <p style={{ fontSize: 11, color: "#2D8A5E", marginTop: 4 }}>{price.credits} hr credit{price.credits > 1 ? "s" : ""} applied</p>}
+          {tier === "early_birdie" && price.credits > 0 && <p style={{ fontSize: 11, color: "#E8890C", marginTop: 2 }}>Free window: {price.credits}hr covered</p>}
           {price.disc > 0 && <p style={{ fontSize: 11, color: "#2D8A5E", marginTop: 2 }}>Member discount: -${price.disc.toFixed(2)}</p>}
           {price.tax > 0 && <p style={{ fontSize: 11, color: "#888", marginTop: 2 }}>Includes ${price.tax.toFixed(2)} tax (7%)</p>}
         </div>;
@@ -1135,13 +1145,14 @@ export default function BirdieGolfWebsite() {
             <button style={S.mcManage} onClick={() => setMemTab("memberships")}>Manage →</button>
           </div>
           {tier === "player" && <div style={{ marginTop: 16 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}><span style={{ fontSize: 11, color: "#ffffffbb" }}>Bay Hours</span><span style={{ fontSize: 11, color: "#fff", fontWeight: 600 }}>{8 - bayCredits}/8 used · {bayCredits} left</span></div><div style={{ ...S.bar, background: "#ffffff33" }}><div style={{ ...S.barF, width: ((8 - bayCredits) / 8 * 100) + "%", background: "#fff" }} /></div></div>}
+          {tier === "early_birdie" && <p style={{ fontSize: 13, color: "#ffffffcc", marginTop: 14 }}>Unlimited Access Mon-Fri 7am-4pm</p>}
           {tier === "champion" && <p style={{ fontSize: 13, color: "#ffffffcc", marginTop: 14 }}>Unlimited Bay Access</p>}
           {totL > 0 && <p style={{ fontSize: 11, color: "#ffffffaa", marginTop: 10 }}>{totL} lesson credit{totL > 1 ? "s" : ""} active</p>}
           <p style={{ fontSize: 11, color: "#ffffff88", marginTop: 10 }}>Renews {renewDate}</p>
         </div>
         <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <div style={S.detailCard}><h4 style={S.detailH}>Plan Details</h4>
-            {[["Plan", td.n], ["Monthly Rate", "$" + td.price], ["Member Since", memberSince], ["Next Renewal", renewDate], ["Bay Hours", tier === "champion" ? "Unlimited (max 2hr/booking)" : bayCredits + " of 8 remaining"]].map(([l, v]) => <div key={l} style={S.detailRow}><span style={S.detailL}>{l}</span><span style={S.detailV}>{v}</span></div>)}</div>
+            {[["Plan", td.n], ["Monthly Rate", "$" + td.price], ["Member Since", memberSince], ["Next Renewal", renewDate], ["Bay Hours", tier === "champion" ? "Unlimited (max 2hr/booking)" : tier === "early_birdie" ? "Unlimited Mon-Fri 7am-4pm" : bayCredits + " of 8 remaining"]].map(([l, v]) => <div key={l} style={S.detailRow}><span style={S.detailL}>{l}</span><span style={S.detailV}>{v}</span></div>)}</div>
           <div style={S.detailCard}><h4 style={S.detailH}>Perks</h4>
             {td.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}><span style={{ color: "#2D8A5E" }}>{X.chk(16)}</span><span style={{ fontSize: 13 }}>{p}</span></div>)}</div>
         </div>
@@ -1156,12 +1167,73 @@ export default function BirdieGolfWebsite() {
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><span style={{ background: t.c, color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontFamily: mono, letterSpacing: 1 }}>{t.badge}</span><span style={{ fontSize: 16, fontWeight: 700 }}>{t.n}</span></div>
           <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>${t.price}<span style={{ fontSize: 13, color: "#888", fontWeight: 400 }}>/mo</span></p>
           {t.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}><span style={{ color: t.c, flexShrink: 0 }}>{X.chk(14)}</span><span style={{ fontSize: 12 }}>{p}</span></div>)}
-          {t.enrollmentFee && (!tier || tier === "none") && (
-            <p style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>A one-time Enrollment Fee of ${t.enrollmentFee} is required at sign-up.</p>
-          )}
+          {t.enrollmentFee && <p style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>One-time ${t.enrollmentFee} enrollment fee at sign-up.</p>}
+          {k === "early_birdie" && <p style={{ fontSize: 11, fontWeight: 700, color: "#E8890C", marginTop: 4 }}>Mon-Fri 7am-4pm only</p>}
           <div style={{ marginTop: 14 }}>{k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span> : hasCard ? <button style={{ ...S.b1, background: t.c }} onClick={() => setMemModal({ type: (!tier || tier === "none") ? "join" : "switch", to: k })}>{(!tier || tier === "none") ? "Get Started" : Object.keys(TIERS).indexOf(k) > Object.keys(TIERS).indexOf(tier) ? "Upgrade" : "Switch"}</button> : <button style={{ ...S.b1, background: "#ccc" }} onClick={() => setTab("profile")}>Add Card First</button>}</div>
         </div>)}
       </div>}
+
+      {memModal?.type === "join" && (() => {
+        const t = TIERS[memModal.to];
+        const ef = t?.enrollmentFee || 0;
+        const subtotal = (t?.price || 0) + ef;
+        const tax = applyTax(subtotal);
+        const total = subtotal + tax;
+        const cardLabel = cards?.[0] ? (cards[0].brand + " ..." + cards[0].last4) : "card on file";
+        const sqCardId = cards?.[0]?.square_card_id;
+        return <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{t?.n} Membership</h3>
+          <p style={{ fontSize: 13, color: "#555", marginBottom: 16 }}>Joining the {t?.n} plan. Here is what you will be charged today:</p>
+          <div style={{ background: "#f7f7f5", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: "#555" }}>First Month ({t?.n})</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>${t?.price}.00</span>
+            </div>
+            {ef > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: "#555" }}>One-time Enrollment Fee</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>${ef}.00</span>
+            </div>}
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: "#555" }}>Tax (7%)</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>${tax.toFixed(2)}</span>
+            </div>
+            <div style={{ borderTop: "1px solid #e8e8e6", marginTop: 8, paddingTop: 10, display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>Total Due Today</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: t?.c }}>${total.toFixed(2)}</span>
+            </div>
+          </div>
+          {memModal.to === "early_birdie" && <div style={{ background: "#FFF8E8", border: "1px solid #E8890C33", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#E8890C", marginBottom: 4 }}>Time Restriction</p>
+            <p style={{ fontSize: 12, color: "#555", lineHeight: 1.5 }}>Early Birdie credits apply Mon-Fri 7am-4pm only. Bookings outside that window are charged at the full hourly rate + tax.</p>
+          </div>}
+          <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}. Renews monthly at ${t?.price}/mo + tax.</p>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button style={S.b2} onClick={() => setMemModal(null)}>Cancel</button>
+            <button style={{ ...S.b1, flex: 2, background: t?.c }} onClick={async () => {
+              let sqPaymentId = null;
+              if (total > 0 && sqCustId && sqCardId) {
+                const memLineItems = [{ name: t?.n + " Membership - First Month", amount: t?.price || 0 }];
+                if (ef > 0) memLineItems.push({ name: t?.n + " Enrollment Fee (one-time)", amount: ef });
+                const order = await square("order.create", { square_customer_id: sqCustId, line_items: memLineItems });
+                const orderId = order?.order?.id;
+                const payment = await square("payment.create", { square_customer_id: sqCustId, card_id: sqCardId, amount: total, order_id: orderId, note: t?.n + " Membership" });
+                sqPaymentId = payment?.payment?.id;
+              }
+              const rd = new Date(); rd.setMonth(rd.getMonth() + 1);
+              await sb.patch("customers", "id=eq." + customerId, { tier: memModal.to, bay_credits_remaining: t?.hrs === -1 ? 999 : (t?.hrs || 0), bay_credits_total: t?.hrs === -1 ? 999 : (t?.hrs || 0), member_since: dateKey(new Date()), renewal_date: dateKey(rd) });
+              await sb.post("membership_history", { customer_id: customerId, action: "join", tier: memModal.to, amount: total, date: dateKey(new Date()) });
+              await sb.post("transactions", { customer_id: customerId, description: t?.n + " Membership - First Month", date: dateKey(new Date()), amount: t?.price, payment_label: cardLabel, square_payment_id: sqPaymentId });
+              if (ef > 0) await sb.post("transactions", { customer_id: customerId, description: t?.n + " Enrollment Fee (one-time)", date: dateKey(new Date()), amount: ef, payment_label: cardLabel, square_payment_id: sqPaymentId });
+              await sb.post("transactions", { customer_id: customerId, description: "Tax (7%)", date: dateKey(new Date()), amount: tax, payment_label: cardLabel, square_payment_id: sqPaymentId });
+              setTier(memModal.to);
+              setBayCredits(t?.hrs === -1 ? 999 : (t?.hrs || 0));
+              setMemberSince(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+              setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+              fire("Welcome to " + t?.n + "!"); setMemModal(null); setMemTab("current");
+            }}>Confirm and Pay ${total.toFixed(2)}</button>
+          </div>
+        </div></div>;
+      })()}
 
       {memModal === "cancel" && (() => {
         const today = new Date(); today.setHours(0,0,0,0);
@@ -1194,92 +1266,6 @@ export default function BirdieGolfWebsite() {
               setMemModal(null);
             }}>Schedule Cancellation</button>
           </div>
-        </div></div>;
-      })()}
-
-      {memModal?.type === "join" && (() => {
-        const t = TIERS[memModal.to];
-        const ef = t?.enrollmentFee || 0;
-        const subtotal = (t?.price || 0) + ef;
-        const tax = applyTax(subtotal);
-        const total = subtotal + tax;
-        const cardLabel = cards?.[0] ? (cards[0].brand + " ····" + cards[0].last4) : "card on file";
-        const sqCardId = cards?.[0]?.square_card_id;
-        return <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{t?.n} Membership</h3>
-          <p style={{ fontSize: 13, color: "#555", marginBottom: 16 }}>You're joining the {t?.n} plan. Here's what you'll be charged today:</p>
-          <div style={{ background: "#f7f7f5", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontSize: 13, color: "#555" }}>First Month ({t?.n})</span>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>${t?.price}.00</span>
-            </div>
-            {ef > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontSize: 13, color: "#555" }}>One-time Enrollment Fee</span>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>${ef}.00</span>
-            </div>}
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontSize: 13, color: "#555" }}>Tax (7%)</span>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>${tax.toFixed(2)}</span>
-            </div>
-            <div style={{ borderTop: "1px solid #e8e8e6", marginTop: 8, paddingTop: 10, display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 14, fontWeight: 700 }}>Total Due Today</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: t?.c }}>${total.toFixed(2)}</span>
-            </div>
-          </div>
-          <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}. Renews monthly at ${t?.price}/mo + tax.</p>
-          <div style={{ display: "flex", gap: 10 }}><button style={S.b2} onClick={() => setMemModal(null)}>Cancel</button><button style={{ ...S.b1, flex: 2, background: t?.c }} onClick={async () => {
-            // Charge total (first month + enrollment fee + tax) via Square
-            let sqPaymentId = null;
-            if (total > 0 && sqCustId && sqCardId) {
-              // Build order line items (first month + enrollment fee separately so Square sees them)
-              const memLineItems = [{ name: `${t?.n} Membership — First Month`, amount: t?.price || 0 }];
-              if (ef > 0) memLineItems.push({ name: `${t?.n} Enrollment Fee (one-time)`, amount: ef });
-              const order = await square("order.create", { square_customer_id: sqCustId, line_items: memLineItems });
-              const orderId = order?.order?.id;
-              const payment = await square("payment.create", {
-                square_customer_id: sqCustId,
-                card_id: sqCardId,
-                amount: total,
-                order_id: orderId,
-                note: `${t?.n} Membership — First Month + Enrollment Fee`,
-              });
-              sqPaymentId = payment?.payment?.id;
-            }
-            // Update customer tier in Supabase
-            const rd = new Date(); rd.setMonth(rd.getMonth() + 1);
-            await sb.patch("customers", `id=eq.${customerId}`, {
-              tier: memModal.to,
-              bay_credits_remaining: t?.hrs === -1 ? 999 : (t?.hrs || 0),
-              bay_credits_total: t?.hrs === -1 ? 999 : (t?.hrs || 0),
-              member_since: dateKey(new Date()),
-              renewal_date: dateKey(rd),
-            });
-            await sb.post("membership_history", { customer_id: customerId, action: "join", tier: memModal.to, amount: total, date: dateKey(new Date()) });
-            // Log first month, enrollment fee, and tax as separate transactions
-            await sb.post("transactions", { customer_id: customerId, description: t?.n + " Membership — First Month", date: dateKey(new Date()), amount: t?.price, payment_label: cardLabel, square_payment_id: sqPaymentId });
-            if (ef > 0) await sb.post("transactions", { customer_id: customerId, description: t?.n + " Enrollment Fee (one-time)", date: dateKey(new Date()), amount: ef, payment_label: cardLabel, square_payment_id: sqPaymentId });
-            await sb.post("transactions", { customer_id: customerId, description: "Tax (7%)", date: dateKey(new Date()), amount: tax, payment_label: cardLabel, square_payment_id: sqPaymentId });
-            // Update local state
-            setTier(memModal.to);
-            setBayCredits(t?.hrs === -1 ? 999 : (t?.hrs || 0));
-            const todayStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-            setMemberSince(todayStr);
-            setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
-            setTransactions(p => [
-              { desc: "Tax (7%)", date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), method: cardLabel, amt: "$" + tax.toFixed(2) },
-              { desc: t?.n + " Enrollment Fee (one-time)", date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), method: cardLabel, amt: "$" + ef + ".00" },
-              { desc: t?.n + " Membership — First Month", date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), method: cardLabel, amt: "$" + (t?.price) + ".00" },
-              ...p
-            ]);
-            sendEmail("membership", {
-              customer_name: onbF + " " + onbL,
-              customer_email: profEmail || onbE,
-              plan: t?.n + " Plan",
-              price: "$" + t?.price + "/mo",
-              renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
-            });
-            fire("Welcome to " + t?.n + "! 🎉"); setMemModal(null); setMemTab("current");
-          }}>Confirm & Pay ${total.toFixed(2)}</button></div>
         </div></div>;
       })()}
 
