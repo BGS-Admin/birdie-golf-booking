@@ -1219,6 +1219,11 @@ export default function BirdieGolfWebsite() {
                 const payment = await square("payment.create", { square_customer_id: sqCustId, card_id: sqCardId, amount: total, order_id: orderId, note: t?.n + " Membership" });
                 sqPaymentId = payment?.payment?.id;
               }
+              // Guard: re-check customer has no active membership before writing
+              const freshCust = await sb.get("customers", `id=eq.${customerId}&select=tier`);
+              if (freshCust?.[0]?.tier && freshCust[0].tier !== "none") {
+                fire("You already have an active membership."); setMemModal(null); return;
+              }
               const rd = new Date(); rd.setMonth(rd.getMonth() + 1);
               await sb.patch("customers", "id=eq." + customerId, { tier: memModal.to, bay_credits_remaining: t?.hrs === -1 ? 999 : (t?.hrs || 0), bay_credits_total: t?.hrs === -1 ? 999 : (t?.hrs || 0), member_since: dateKey(new Date()), renewal_date: dateKey(rd) });
               await sb.post("membership_history", { customer_id: customerId, action: "join", tier: memModal.to, amount: total, date: dateKey(new Date()) });
