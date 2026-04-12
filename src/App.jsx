@@ -77,8 +77,8 @@ const X = {
 
 /* ─── Business Constants ─── */
 const TIERS = {
-  starter:      { n: "Starter",      c: "#4A8B6E", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate"] },
-  early_birdie: { n: "Early Birdie", c: "#E8890C", badge: "EBD", price: 150, hrs: -1, enrollmentFee: 50, perks: ["Unlimited bay access Mon-Fri 7am-4pm", "Full rate applies outside those hours", "Members-only events"] },
+  starter:      { n: "Starter",      c: "#7AB89A", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate"] },
+  early_birdie: { n: "Early Birdie", c: "#4A8B6E", badge: "EBD", price: 150, hrs: -1, enrollmentFee: 50, perks: ["Unlimited bay access Mon-Fri 7am-4pm", "Full rate applies outside those hours", "Members-only events"] },
   player:       { n: "Player",       c: "#2D8A5E", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hrs bay rental/mo", "20% off additional hours", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
   champion:     { n: "Champion",     c: "#124A2B", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited bay rental (max 2hr/booking)", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
 };
@@ -844,7 +844,7 @@ export default function BirdieGolfWebsite() {
           <div>
             <div style={S.confCard}>
               {[["Date", fmtDateLong(bkDate)], ["Duration", durHrs + " hr" + (durHrs > 1 ? "s" : "")], ["Time", bkTime], ["Bay", "Bay " + bkBay]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
-              {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{tier === "early_birdie" ? "Free Window" : "Credits Used"}</span><span style={{ ...S.confV, color: tier === "early_birdie" ? "#E8890C" : "#2D8A5E" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
+              {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{tier === "early_birdie" ? "Free Window" : "Credits Used"}</span><span style={{ ...S.confV, color: tier === "early_birdie" ? "#4A8B6E" : "#2D8A5E" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
               {price.disc > 0 && <div style={S.confRow}><span style={S.confL}>Member Discount</span><span style={{ ...S.confV, color: "#2D8A5E" }}>-${price.disc.toFixed(2)}</span></div>}
               {price.tax > 0 && <div style={S.confRow}><span style={S.confL}>Tax (7%)</span><span style={S.confV}>${price.tax.toFixed(2)}</span></div>}
               <div style={S.confDiv} />
@@ -882,7 +882,7 @@ export default function BirdieGolfWebsite() {
         <button style={{ ...S.b1, background: "#E03928", maxWidth: 180, fontSize: 13, padding: "10px 14px" }} onClick={() => setTab("profile")}>Add Card</button>
       </div>}
       {tier === "champion" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#124A2B" }}>Unlimited · Max 2hrs/booking</span></div>}
-      {tier === "early_birdie" && <div style={{ ...S.creditBanner, borderColor: "#E8890C33", background: "#E8890C08" }}><span style={{ fontSize: 13, fontWeight: 600, color: "#E8890C" }}>Unlimited Mon-Fri 7am-4pm · Full rate outside window</span></div>}
+      {tier === "early_birdie" && <div style={{ ...S.creditBanner, borderColor: "#4A8B6E33", background: "#4A8B6E08" }}><span style={{ fontSize: 13, fontWeight: 600, color: "#4A8B6E" }}>Unlimited Mon-Fri 7am-4pm · Full rate outside window</span></div>}
       {tier === "player" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#2D8A5E" }}>{bayCredits > 0 ? bayCredits + " hrs of credits remaining this cycle" : "No bay credits remaining this cycle"}</span></div>}
 
       {hasCard && <><h4 style={S.stepH}>Select Date</h4>
@@ -943,7 +943,7 @@ export default function BirdieGolfWebsite() {
             <span style={{ fontSize: 16, fontWeight: 700, color: "#2D8A5E" }}>${price.total.toFixed(2)}</span>
           </div>
           {price.credits > 0 && <p style={{ fontSize: 11, color: "#2D8A5E", marginTop: 4 }}>{price.credits} hr credit{price.credits > 1 ? "s" : ""} applied</p>}
-          {tier === "early_birdie" && price.credits > 0 && <p style={{ fontSize: 11, color: "#E8890C", marginTop: 2 }}>Free window: {price.credits}hr covered</p>}
+          {tier === "early_birdie" && price.credits > 0 && <p style={{ fontSize: 11, color: "#4A8B6E", marginTop: 2 }}>Free window: {price.credits}hr covered</p>}
           {price.disc > 0 && <p style={{ fontSize: 11, color: "#2D8A5E", marginTop: 2 }}>Member discount: -${price.disc.toFixed(2)}</p>}
           {price.tax > 0 && <p style={{ fontSize: 11, color: "#888", marginTop: 2 }}>Includes ${price.tax.toFixed(2)} tax (7%)</p>}
         </div>;
@@ -1168,7 +1168,7 @@ export default function BirdieGolfWebsite() {
           <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>${t.price}<span style={{ fontSize: 13, color: "#888", fontWeight: 400 }}>/mo</span></p>
           {t.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}><span style={{ color: t.c, flexShrink: 0 }}>{X.chk(14)}</span><span style={{ fontSize: 12 }}>{p}</span></div>)}
           {t.enrollmentFee && <p style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>One-time ${t.enrollmentFee} enrollment fee at sign-up.</p>}
-          {k === "early_birdie" && <p style={{ fontSize: 11, fontWeight: 700, color: "#E8890C", marginTop: 4 }}>Mon-Fri 7am-4pm only</p>}
+          {k === "early_birdie" && <p style={{ fontSize: 11, fontWeight: 700, color: "#4A8B6E", marginTop: 4 }}>Mon-Fri 7am-4pm only</p>}
           <div style={{ marginTop: 14 }}>{k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span> : hasCard ? <button style={{ ...S.b1, background: t.c }} onClick={() => setMemModal({ type: (!tier || tier === "none") ? "join" : "switch", to: k })}>{(!tier || tier === "none") ? "Get Started" : Object.keys(TIERS).indexOf(k) > Object.keys(TIERS).indexOf(tier) ? "Upgrade" : "Switch"}</button> : <button style={{ ...S.b1, background: "#ccc" }} onClick={() => setTab("profile")}>Add Card First</button>}</div>
         </div>)}
       </div>}
@@ -1202,8 +1202,8 @@ export default function BirdieGolfWebsite() {
               <span style={{ fontSize: 14, fontWeight: 700, color: t?.c }}>${total.toFixed(2)}</span>
             </div>
           </div>
-          {memModal.to === "early_birdie" && <div style={{ background: "#FFF8E8", border: "1px solid #E8890C33", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#E8890C", marginBottom: 4 }}>Time Restriction</p>
+          {memModal.to === "early_birdie" && <div style={{ background: "#F0F7F4", border: "1px solid #4A8B6E33", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#4A8B6E", marginBottom: 4 }}>Time Restriction</p>
             <p style={{ fontSize: 12, color: "#555", lineHeight: 1.5 }}>Early Birdie credits apply Mon-Fri 7am-4pm only. Bookings outside that window are charged at the full hourly rate + tax.</p>
           </div>}
           <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}. Renews monthly at ${t?.price}/mo + tax.</p>
@@ -1578,7 +1578,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
     onRefresh();
   };
 
-  const GREEN="#2D8A5E", RED="#E03928", ORANGE="#E8890C", PURPLE="#5B6DCD";
+  const GREEN="#2D8A5E", RED="#E03928", ORANGE="#4A8B6E", PURPLE="#5B6DCD";
   const accentColor = isLesson ? PURPLE : GREEN;
   const ov  = { position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20 };
   const mod = { background:"#fff",borderRadius:20,padding:24,maxWidth:420,width:"100%",maxHeight:"85vh",overflowY:"auto" };
@@ -1756,7 +1756,7 @@ const S = {
   confL: { fontSize: 13, color: "#888" },
   confV: { fontSize: 13, fontWeight: 600, textAlign: "right" },
   confDiv: { height: 1, background: "#f2f2f0", margin: "6px 0" },
-  polBox: { background: "#FFF8F0", border: "1px solid #E8890C22", borderRadius: 14, padding: 16, marginTop: 14 },
+  polBox: { background: "#F0F7F4", border: "1px solid #4A8B6E22", borderRadius: 14, padding: 16, marginTop: 14 },
   chkRow: { display: "flex", alignItems: "center", cursor: "pointer" },
 
   /* Tabs */
