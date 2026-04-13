@@ -782,20 +782,33 @@ export default function BirdieGolfWebsite() {
         <div style={{ display: "grid", gridTemplateColumns: (tierData && tier !== "none" && totL > 0) ? "1fr 1fr" : "1fr", gap: 12, alignItems: "stretch" }}>
           {tierData && tier !== "none" && (
             <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <span style={S.mcBadge}>{tierData.badge}</span>
-              <p style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginTop: 6 }}>{tierData.n} Plan</p>
-              <p style={{ fontSize: 12, color: "#ffffffbb" }}>${tierData.price}/mo</p>
-              {tier === "player" && <div style={{ marginTop: 10 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}><span style={{ fontSize: 10, color: "#ffffffbb" }}>Bay Hours</span><span style={{ fontSize: 10, color: "#fff", fontWeight: 600 }}>{bayCredits}/{TIERS.player.hrs}</span></div><div style={{ ...S.bar, background: "#ffffff33" }}><div style={{ ...S.barF, width: (bayCredits / 8 * 100) + "%", background: "#fff" }} /></div></div>}
-              {tier === "early_birdie" && <p style={{ fontSize: 11, color: "#ffffffcc", marginTop: 8 }}>Unlimited Mon-Fri 7am-4pm</p>}
-              {tier === "champion" && <p style={{ fontSize: 11, color: "#ffffffcc", marginTop: 8 }}>Unlimited Bay Access</p>}
+              <p style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{tierData.n} Plan</p>
+              <p style={{ fontSize: 12, color: "#ffffffbb", marginTop: 2 }}>${tierData.price}/mo</p>
+              <div style={{ marginTop: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: 10, color: "#ffffffbb" }}>{tier === "player" ? "Bay Hours" : tier === "early_birdie" ? "Mon-Fri 7am–4pm" : "Unlimited"}</span>
+                  <span style={{ fontSize: 10, color: "#fff", fontWeight: 600 }}>{tier === "player" ? `${bayCredits}/${TIERS.player.hrs}` : tier === "early_birdie" ? "Unlimited" : "Max 2hr/booking"}</span>
+                </div>
+                <div style={{ ...S.bar, background: "#ffffff33" }}>
+                  <div style={{ ...S.barF, width: tier === "player" ? (bayCredits / 8 * 100) + "%" : "100%", background: "#fff" }} />
+                </div>
+              </div>
             </div>
           )}
           {totL > 0 && creditCoach && (
             <div style={{ background: "#5B6DCD12", border: "1px solid #5B6DCD33", borderRadius: 18, padding: "22px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontSize: 13, fontWeight: 600, color: "#5B6DCD" }}>{creditPkg}</span><span style={{ background: "#5B6DCD", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totL}/{maxL}</span></div>
-              <p style={{ fontSize: 12, color: "#888" }}>{creditCoach.n}</p>
-              <div style={{ ...S.bar, marginTop: 6 }}><div style={{ ...S.barF, width: (totL / maxL * 100) + "%", background: "#5B6DCD" }} /></div>
-              <p style={{ fontSize: 10, color: "#aaa", marginTop: 6 }}>Expires {creditExp}</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
+                <p style={{ fontSize: 16, fontWeight: 700, color: "#1a1a1a" }}>{creditPkg}</p>
+                <span style={{ background: "#5B6DCD", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, flexShrink: 0, marginLeft: 8 }}>{totL}/{maxL}</span>
+              </div>
+              <p style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{creditCoach.n} · Expires {creditExp}</p>
+              <div style={{ marginTop: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: 10, color: "#888" }}>Lesson Credits</span>
+                  <span style={{ fontSize: 10, color: "#5B6DCD", fontWeight: 600 }}>{totL}/{maxL}</span>
+                </div>
+                <div style={{ ...S.bar }}><div style={{ ...S.barF, width: (totL / maxL * 100) + "%", background: "#5B6DCD" }} /></div>
+              </div>
             </div>
           )}
         </div>
