@@ -1102,6 +1102,8 @@ export default function BirdieGolfWebsite() {
             <button style={{ ...S.b1, background: "#5B6DCD", marginTop: 14 }} onClick={async () => {
               const today = new Date(), expDate = new Date(today); expDate.setMonth(expDate.getMonth() + 3);
               const fmtShort = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+              const existingPkg = await sb.get("lesson_packages", `customer_id=eq.${customerId}&status=eq.active&select=id`);
+              if (existingPkg?.length > 0) { fire("You already have an active lesson package. Use your remaining credits first."); setSelPkg(null); setPkgCoach(null); return; }
               await sb.post("lesson_packages", { customer_id: customerId, name: selPkg.name, total_credits: selPkg.credits, remaining_credits: selPkg.credits, coach_id: pkgCoach, coach_name: coach?.n, price: selPkg.price, expiry_date: dateKey(expDate), status: "active", purchase_date: dateKey(today) });
               await sb.post("transactions", { customer_id: customerId, description: selPkg.name + " · " + coach?.n, date: dateKey(today), amount: selPkg.price, payment_label: "Visa ····4242" });
               setTotL(selPkg.credits); setMaxL(selPkg.credits); setCreditCoachId(pkgCoach); setCreditPkg(selPkg.name); setCreditPurchaseDate(fmtShort(today)); setCreditExp(fmtShort(expDate)); setCreditUsage([]);
