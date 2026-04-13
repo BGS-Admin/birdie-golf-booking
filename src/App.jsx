@@ -797,9 +797,8 @@ export default function BirdieGolfWebsite() {
           )}
           {totL > 0 && creditCoach && (
             <div style={{ background: "#5B6DCD12", border: "1px solid #5B6DCD33", borderRadius: 18, padding: "22px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
+              <div style={{ marginBottom: 2 }}>
                 <p style={{ fontSize: 16, fontWeight: 700, color: "#1a1a1a" }}>{creditPkg}</p>
-                <span style={{ background: "#5B6DCD", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, flexShrink: 0, marginLeft: 8 }}>{totL}/{maxL}</span>
               </div>
               <p style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{creditCoach.n} · Expires {creditExp}</p>
               <div style={{ marginTop: 10 }}>
