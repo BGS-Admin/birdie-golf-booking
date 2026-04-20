@@ -304,6 +304,8 @@ export default function BirdieGolfWebsite() {
   const [logged, setLogged] = useState(false);
   const [ph, setPh] = useState("");
   const [otp, setOtp] = useState(["","","","","",""]);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
   const [onbF, setOnbF] = useState("");
   const [onbL, setOnbL] = useState("");
   const [onbE, setOnbE] = useState("");
@@ -564,8 +566,17 @@ export default function BirdieGolfWebsite() {
           <span style={LS.phPre}>+1</span>
           <input style={LS.phIn} type="tel" placeholder="(305) 555-0000" value={ph.length > 6 ? `(${ph.slice(0,3)}) ${ph.slice(3,6)}-${ph.slice(6)}` : ph.length > 3 ? `(${ph.slice(0,3)}) ${ph.slice(3)}` : ph.length > 0 ? `(${ph}` : ""} onChange={e => { const digits = e.target.value.replace(/[^0-9]/g, ""); setPh(digits.slice(0, 10)); }} />
         </div>
-        <button style={{ ...S.b1, marginTop: 16, opacity: ph.length >= 10 ? 1 : 0.4 }} onClick={() => { if (ph.length >= 10) setAuthStep("otp"); }}>Continue</button>
-        <div style={LS.demo}>Demo: any 10+ digits</div>
+        <button style={{ ...S.b1, marginTop: 16, opacity: ph.length >= 10 && !otpSending ? 1 : 0.4 }} disabled={otpSending} onClick={async () => {
+          if (ph.length < 10 || otpSending) return;
+          setOtpSending(true);
+          const code = Math.floor(100000 + Math.random() * 900000).toString();
+          setOtpCode(code);
+          try {
+            await square("sms.send", { phone: ph, code });
+          } catch(e) { console.warn("SMS failed", e); }
+          setOtpSending(false);
+          setAuthStep("otp");
+        }}>{otpSending ? "Sending code…" : "Continue"}</button>
         <div style={LS.footer}>
           <span style={LS.footerText}>45 NE 26th St, Unit C, Miami, FL 33145</span>
           <span style={LS.footerText}>Mon–Fri 7am–10pm · Sat–Sun 9am–9pm</span>
@@ -587,6 +598,7 @@ export default function BirdieGolfWebsite() {
         </div>
         <button style={{ ...S.b1, marginTop: 16, opacity: otp.every(d => d) ? 1 : 0.4 }} onClick={async () => {
           if (!otp.every(d => d)) return;
+          if (otp.join("") !== otpCode) { fire("Incorrect code — please try again"); setOtp(["","","","","",""]); otpRefs[0].current?.focus(); return; }
           // Look up phone in Supabase — skip onboarding if existing customer
           const existing = await sb.get("customers", `phone=eq.${ph}&select=*`);
           if (existing?.length) {
@@ -609,8 +621,7 @@ export default function BirdieGolfWebsite() {
             setAuthStep("onboard");
           }
         }}>Verify</button>
-        <div style={LS.demo}>Demo: any 6 digits</div>
-        <button style={{ ...S.lk, marginTop: 12, display: "block", textAlign: "center", width: "100%" }} onClick={() => { setAuthStep("phone"); setOtp(["","","","","",""]); }}>← Back</button>
+        <button style={{ ...S.lk, marginTop: 12, display: "block", textAlign: "center", width: "100%" }} onClick={() => { setAuthStep("phone"); setOtp(["","","","","",""]); setOtpCode(""); }}>← Back</button>
       </>
     );
 
@@ -840,7 +851,7 @@ export default function BirdieGolfWebsite() {
         <a href="tel:+13054564149" style={S.contactBtn}>{X.phone(16)} Call Us</a>
       </div>
 
-      <button style={{ ...S.b1, background: "#f0f0ee", color: "#888", marginBottom: 40 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOnbF(""); setOnbL(""); setOnbE(""); }}>
+      <button style={{ ...S.b1, background: "#f0f0ee", color: "#888", marginBottom: 40 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOtpCode(""); setOnbF(""); setOnbL(""); setOnbE(""); }}>
         {X.out(16)} Sign Out
       </button>
     </>
@@ -1370,7 +1381,7 @@ export default function BirdieGolfWebsite() {
       </>}
       <p style={{ fontSize: 10, color: "#ccc", textAlign: "center", marginTop: 14 }}>Powered by Square</p></div>
 
-    <button style={{ ...S.b1, background: "#E03928", marginTop: 8 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOnbF(""); setOnbL(""); setOnbE(""); }}>{X.out(16)} Sign Out</button>
+    <button style={{ ...S.b1, background: "#E03928", marginTop: 8 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOtpCode(""); setOnbF(""); setOnbL(""); setOnbE(""); }}>{X.out(16)} Sign Out</button>
 
     {editModal && <div style={S.ov} onClick={() => setEditModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
       {editModal.step === "edit" ? <>
