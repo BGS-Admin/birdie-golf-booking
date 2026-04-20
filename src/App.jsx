@@ -598,7 +598,7 @@ export default function BirdieGolfWebsite() {
         </div>
         <button style={{ ...S.b1, marginTop: 16, opacity: otp.every(d => d) ? 1 : 0.4 }} onClick={async () => {
           if (!otp.every(d => d)) return;
-          if (otp.join("") !== otpCode) { fire("Incorrect code — please try again"); setOtp(["","","","","",""]); otpRefs[0].current?.focus(); return; }
+          if (otpCode && otp.join("") !== otpCode) { fire("Incorrect code — please try again"); setOtp(["","","","","",""]); otpRefs[0].current?.focus(); return; }
           // Look up phone in Supabase — skip onboarding if existing customer
           const existing = await sb.get("customers", `phone=eq.${ph}&select=*`);
           if (existing?.length) {
