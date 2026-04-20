@@ -835,10 +835,14 @@ export default function BirdieGolfWebsite() {
       </div>
 
       <h3 style={S.sh}>Contact</h3>
-      <div style={{ display: "flex", gap: 10, marginBottom: 40 }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
         <a href="mailto:info@birdiegolfstudios.com" style={S.contactBtn}>{X.mail(16)} Email Us</a>
         <a href="tel:+13054564149" style={S.contactBtn}>{X.phone(16)} Call Us</a>
       </div>
+
+      <button style={{ ...S.b1, background: "#f0f0ee", color: "#888", marginBottom: 40 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOnbF(""); setOnbL(""); setOnbE(""); }}>
+        {X.out(16)} Sign Out
+      </button>
     </>
   );
 
@@ -1248,6 +1252,7 @@ export default function BirdieGolfWebsite() {
               setBayCredits(t?.hrs === -1 ? 999 : (t?.hrs || 0));
               setMemberSince(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
               setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+              loadUserData(customerId);
               fire("Welcome to " + t?.n + "!"); setMemModal(null); setMemTab("current");
             }}>Confirm and Pay ${total.toFixed(2)}</button>
           </div>
@@ -1369,24 +1374,40 @@ export default function BirdieGolfWebsite() {
 
     {editModal && <div style={S.ov} onClick={() => setEditModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
       {editModal.step === "edit" ? <>
-        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Update {editModal.type === "phone" ? "Phone" : "Email"}</h3>
+        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Update {editModal.type === "phone" ? "Phone Number" : "Email Address"}</h3>
         <input style={S.profIn} placeholder={editModal.type === "phone" ? "+1 (305) 555-0000" : "you@email.com"} value={editModal.val} onChange={e => setEditModal(p => ({ ...p, val: e.target.value }))} />
-        <button style={{ ...S.b1, marginTop: 12 }} onClick={() => setEditModal(p => ({ ...p, step: "otp" }))}>Send Verification Code</button>
+        {editModal.type === "email"
+          ? <button style={{ ...S.b1, marginTop: 12 }} disabled={editModal.sending} onClick={async () => {
+              if (!editModal.val || !editModal.val.includes("@")) { fire("Please enter a valid email"); return; }
+              setEditModal(p => ({ ...p, sending: true }));
+              const code = Math.floor(100000 + Math.random() * 900000).toString();
+              // Send verification code via Resend
+              try {
+                await fetch(SQUARE_FN_URL, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
+                  body: JSON.stringify({ action: "email.send", type: "verification_code", customer_name: onbF, customer_email: editModal.val, code }) });
+              } catch(e) { console.warn("Verification email failed", e); }
+              setEditModal(p => ({ ...p, step: "otp", code, sending: false }));
+            }}>{editModal.sending ? "Sending…" : "Send Verification Code"}</button>
+          : <button style={{ ...S.b1, marginTop: 12 }} onClick={async () => {
+              if (!editModal.val) { fire("Please enter a phone number"); return; }
+              setProfPhone(editModal.val);
+              await sb.patch("customers", `id=eq.${customerId}`, { phone: editModal.val });
+              if (sqCustId) await square("customer.update", { square_customer_id: sqCustId, phone: editModal.val.replace(/\D/g,"") });
+              fire("Phone number updated"); setEditModal(null);
+            }}>Save Phone Number</button>
+        }
       </> : <>
-        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Enter Code</h3>
-        <p style={{ fontSize: 13, color: "#888", marginBottom: 14 }}>Demo: any 6 digits</p>
+        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Check Your Email</h3>
+        <p style={{ fontSize: 13, color: "#888", marginBottom: 14 }}>We sent a 6-digit code to {editModal.val}</p>
         <div style={{ ...LS.otpRow, justifyContent: "center" }}>{editModal.otp.map((v, i) => <input key={i} ref={editOtpRefs[i]} style={{ ...LS.otpIn, width: 40, height: 44 }} type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={1} value={v} onChange={e => { const val = e.target.value.replace(/[^0-9]/g, "").slice(-1); const next = [...editModal.otp]; next[i] = val; setEditModal(p => ({ ...p, otp: next })); if (val && i < 5) editOtpRefs[i + 1].current?.focus(); }} onKeyDown={e => { if (e.key === "Backspace" && !editModal.otp[i] && i > 0) editOtpRefs[i - 1].current?.focus(); }} />)}</div>
         <button style={{ ...S.b1, marginTop: 12 }} onClick={async () => {
-          if (editModal.type === "phone") {
-            setProfPhone(editModal.val);
-            await sb.patch("customers", `id=eq.${customerId}`, { phone: editModal.val });
-            if (sqCustId) await square("customer.update", { square_customer_id: sqCustId, phone: editModal.val.replace(/\D/g,"") });
-          } else {
-            setProfEmail(editModal.val);
-            await sb.patch("customers", `id=eq.${customerId}`, { email: editModal.val });
-            if (sqCustId) await square("customer.update", { square_customer_id: sqCustId, email: editModal.val });
-          }
-          fire((editModal.type === "phone" ? "Phone" : "Email") + " updated"); setEditModal(null);
+          const entered = editModal.otp.join("");
+          if (entered.length < 6) { fire("Enter the full 6-digit code"); return; }
+          if (entered !== editModal.code) { fire("Incorrect code — please try again"); return; }
+          setProfEmail(editModal.val);
+          await sb.patch("customers", `id=eq.${customerId}`, { email: editModal.val });
+          if (sqCustId) await square("customer.update", { square_customer_id: sqCustId, email: editModal.val });
+          fire("Email updated"); setEditModal(null);
         }}>Verify & Save</button>
       </>}
       <button style={{ ...S.lk, marginTop: 10, display: "block", textAlign: "center", width: "100%" }} onClick={() => setEditModal(null)}>Cancel</button>
