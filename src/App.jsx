@@ -572,7 +572,7 @@ export default function BirdieGolfWebsite() {
           const code = Math.floor(100000 + Math.random() * 900000).toString();
           setOtpCode(code);
           try {
-            await square("sms.send", { phone: ph, code });
+            square("sms.send", { phone: ph, code });
           } catch(e) { console.warn("SMS failed", e); }
           setOtpSending(false);
           setAuthStep("otp");
