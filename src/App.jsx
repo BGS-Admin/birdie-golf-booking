@@ -352,6 +352,7 @@ export default function BirdieGolfWebsite() {
   const [bkTime, setBkTime] = useState(null);
   const [bkBay, setBkBay] = useState(null);
   const [bkAgree, setBkAgree] = useState(false);
+  const [bkOverridePastRenewal, setBkOverridePastRenewal] = useState(false);
 
   /* Lesson booking */
   const [lesTab, setLesTab] = useState("book");
@@ -384,7 +385,7 @@ export default function BirdieGolfWebsite() {
   const days14 = gen14();
   const creditCoach = COACHES.find(c => c.id === creditCoachId);
   const tierData = TIERS[tier] || null;
-  const resetBk = () => { setBkStep(0); setBkDate(null); setBkDur(null); setBkTime(null); setBkBay(null); setBkAgree(false); };
+  const resetBk = () => { setBkStep(0); setBkDate(null); setBkDur(null); setBkTime(null); setBkBay(null); setBkAgree(false); setBkOverridePastRenewal(false); };
   const hasCard = true; // Card requirement temporarily disabled
   const resetLes = () => { setLesStep(0); setLesDate(null); setLesTime(null); setLesCoach(null); setLesAgree(false); };
 
@@ -857,27 +858,75 @@ export default function BirdieGolfWebsite() {
   const durs = [{ slots: 1, l: "30 min" },{ slots: 2, l: "1 hr" },{ slots: 3, l: "1.5 hrs" },{ slots: 4, l: "2 hrs" },{ slots: 5, l: "2.5 hrs" },{ slots: 6, l: "3 hrs" },{ slots: 7, l: "3.5 hrs" },{ slots: 8, l: "4 hrs" }];
   const champMax = (tier === "champion" || pendingTier === "champion") ? 4 : 999;
 
-  // Returns the tier and bayCredits that will be active on a given booking date,
-  // accounting for any pending membership switch scheduled at renewDate.
+  // Returns the tier, credits, and any warning for a given booking date.
+  // Handles two cases:
+  //   1. Pending membership switch — use the new tier/credits after renewDate
+  //   2. Player member booking past renewDate — credits will have reset, so
+  //      we cannot assume current credits carry over. Warn and price at full rate.
   const effectiveTierOn = (bookingDate) => {
-    if (!pendingTier || !renewDate) return { eTier: tier, eCredits: bayCredits };
+    if (!renewDate) return { eTier: tier, eCredits: bayCredits, warn: null };
     const bkD = new Date(bookingDate); bkD.setHours(12, 0, 0, 0);
-    const rdParts = renewDate.split(" "); // e.g. "May 2, 2026"
     const rdDate = new Date(renewDate); rdDate.setHours(0, 0, 0, 0);
-    if (bkD >= rdDate) {
-      // Booking is on or after switch date — use pending tier
+    const isPastRenewal = bkD >= rdDate;
+
+    if (isPastRenewal && pendingTier) {
+      // Switching to a new plan — use pending tier with fresh credits
       const newTierData = TIERS[pendingTier];
       const eCredits = pendingTier === "champion" ? 999 : pendingTier === "player" ? (newTierData?.hrs || 8) : 0;
-      return { eTier: pendingTier, eCredits };
+      return { eTier: pendingTier, eCredits, warn: "switch" };
     }
-    return { eTier: tier, eCredits: bayCredits };
+
+    if (isPastRenewal && tier === "player") {
+      // Still on Player but booking past renewal — credits will reset on renewal day.
+      // We cannot count on current remaining credits, so price at full rate and warn.
+      return { eTier: tier, eCredits: 0, warn: "past_renewal_player" };
+    }
+
+    if (isPastRenewal && tier === "champion") {
+      // Champion stays unlimited past renewal — no issue
+      return { eTier: tier, eCredits: 999, warn: null };
+    }
+
+    return { eTier: tier, eCredits: bayCredits, warn: null };
   };
 
   const renderBook = () => {
     if (bkStep === 1 && bkDate && bkDur && bkTime && bkBay) {
-      const { eTier, eCredits } = effectiveTierOn(bkDate);
+      const { eTier, eCredits, warn } = effectiveTierOn(bkDate);
       const price = calcPrice(bkDate, bkTime, bkDur, eTier, eCredits, cfg);
       const durHrs = bkDur * 0.5;
+
+      // Past-renewal Player warning — show blocking screen unless user has overridden
+      if (warn === "past_renewal_player" && !bkOverridePastRenewal) return <>
+        <div style={S.hd}><button style={S.bk} onClick={() => setBkStep(0)}>{X.chevL(18)}</button><h2 style={S.ht}>Confirm Booking</h2></div>
+        <div style={{ background: "#FFF5E5", border: "1px solid #E8890C55", borderRadius: 16, padding: 20, marginBottom: 16 }}>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "#E8890C", marginBottom: 8 }}>Heads Up — Booking Past Your Renewal Date</p>
+          <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, marginBottom: 12 }}>
+            You're booking for <strong>{fmtDateLong(bkDate)}</strong>, which is after your membership renews on <strong>{renewDate}</strong>.
+          </p>
+          <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, marginBottom: 12 }}>
+            Your Player credits reset on renewal day, so we can't apply your current credits to this booking — it will be charged at the <strong>full hourly rate</strong>. If you cancel after the renewal date, you won't be eligible for a credit refund.
+          </p>
+          <p style={{ fontSize: 13, color: "#2D8A5E", fontWeight: 600, lineHeight: 1.6 }}>
+            💡 We recommend waiting until after <strong>{renewDate}</strong> to make this booking so your fresh credits apply automatically.
+          </p>
+        </div>
+        <div style={{ background: "#f7f7f5", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+          {[[fmtDateLong(bkDate), null], [durHrs + " hr" + (durHrs > 1 ? "s" : ""), null], [bkTime, null], ["Bay " + bkBay, null]].filter(r => r[0]).map(([v], i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #eee" }}>
+              <span style={{ fontSize: 13, color: "#888" }}>{["Date","Duration","Time","Bay"][i]}</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0 0" }}>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>Total (full rate)</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#E8890C" }}>${price.total.toFixed(2)}</span>
+          </div>
+        </div>
+        <button style={{ ...S.b1, background: "#E8890C", marginBottom: 10 }} onClick={() => setBkOverridePastRenewal(true)}>Book Anyway at Full Rate</button>
+        <button style={S.b2} onClick={() => setBkStep(0)}>Go Back</button>
+      </>;
+
       return <>
         <div style={S.hd}><button style={S.bk} onClick={() => setBkStep(0)}>{X.chevL(18)}</button><h2 style={S.ht}>Confirm Booking</h2></div>
         <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
@@ -979,15 +1028,17 @@ export default function BirdieGolfWebsite() {
       </>}
 
       {bkDate && bkDur && bkTime && bkBay && (() => {
-        const { eTier: pvTier, eCredits: pvCredits } = effectiveTierOn(bkDate);
+        const { eTier: pvTier, eCredits: pvCredits, warn: pvWarn } = effectiveTierOn(bkDate);
         const price = calcPrice(bkDate, bkTime, bkDur, pvTier, pvCredits, cfg);
-        return <div style={S.pricePreview}>
+        return <div style={{ ...S.pricePreview, ...(pvWarn === "past_renewal_player" ? { borderColor: "#E8890C44", background: "#FFF5E508" } : {}) }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Total</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: "#2D8A5E" }}>${price.total.toFixed(2)}</span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: pvWarn === "past_renewal_player" ? "#E8890C" : "#2D8A5E" }}>${price.total.toFixed(2)}</span>
           </div>
+          {pvWarn === "past_renewal_player" && <p style={{ fontSize: 11, color: "#E8890C", marginTop: 4, fontWeight: 600 }}>⚠ Full rate — booking past your {renewDate} renewal</p>}
           {price.credits > 0 && <p style={{ fontSize: 11, color: "#2D8A5E", marginTop: 4 }}>{price.credits} hr credit{price.credits > 1 ? "s" : ""} applied</p>}
-          {tier === "early_birdie" && price.credits > 0 && <p style={{ fontSize: 11, color: "#4A8B6E", marginTop: 2 }}>Free window: {price.credits}hr covered</p>}
+          {pvTier === "early_birdie" && price.credits > 0 && <p style={{ fontSize: 11, color: "#4A8B6E", marginTop: 2 }}>Free window: {price.credits}hr covered</p>}
+          {pvWarn === "switch" && pvTier !== tier && <p style={{ fontSize: 11, color: "#E8890C", marginTop: 4 }}>Priced as {TIERS[pvTier]?.n} — new plan from {renewDate}</p>}
           {price.disc > 0 && <p style={{ fontSize: 11, color: "#2D8A5E", marginTop: 2 }}>Member discount: -${price.disc.toFixed(2)}</p>}
           {price.tax > 0 && <p style={{ fontSize: 11, color: "#888", marginTop: 2 }}>Includes ${price.tax.toFixed(2)} tax (7%)</p>}
         </div>;
