@@ -787,8 +787,7 @@ export default function BirdieGolfWebsite() {
           {tierData && tier !== "none" && (
             <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <p style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{tierData.n} Plan</p>
-              <p style={{ fontSize: 12, color: "#ffffffbb", marginTop: 2 }}>${tierData.price}/mo</p>
-              {renewDate && <p style={{ fontSize: 12, color: "#ffffffbb", marginTop: 2 }}>Renews {renewDate}</p>}
+              <p style={{ fontSize: 12, color: "#ffffffbb", marginTop: 2 }}>${tierData.price}/mo{renewDate ? ` · Renews ${renewDate}` : ""}</p>
               <div style={{ marginTop: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <span style={{ fontSize: 10, color: "#ffffffbb" }}>{tier === "player" ? "Bay Hours" : tier === "early_birdie" ? "Mon-Fri 7am–4pm" : "Unlimited"}</span>
