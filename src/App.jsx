@@ -855,11 +855,28 @@ export default function BirdieGolfWebsite() {
 
   /* ─── BAY BOOKING ─── */
   const durs = [{ slots: 1, l: "30 min" },{ slots: 2, l: "1 hr" },{ slots: 3, l: "1.5 hrs" },{ slots: 4, l: "2 hrs" },{ slots: 5, l: "2.5 hrs" },{ slots: 6, l: "3 hrs" },{ slots: 7, l: "3.5 hrs" },{ slots: 8, l: "4 hrs" }];
-  const champMax = tier === "champion" ? 4 : 999;
+  const champMax = (tier === "champion" || pendingTier === "champion") ? 4 : 999;
+
+  // Returns the tier and bayCredits that will be active on a given booking date,
+  // accounting for any pending membership switch scheduled at renewDate.
+  const effectiveTierOn = (bookingDate) => {
+    if (!pendingTier || !renewDate) return { eTier: tier, eCredits: bayCredits };
+    const bkD = new Date(bookingDate); bkD.setHours(12, 0, 0, 0);
+    const rdParts = renewDate.split(" "); // e.g. "May 2, 2026"
+    const rdDate = new Date(renewDate); rdDate.setHours(0, 0, 0, 0);
+    if (bkD >= rdDate) {
+      // Booking is on or after switch date — use pending tier
+      const newTierData = TIERS[pendingTier];
+      const eCredits = pendingTier === "champion" ? 999 : pendingTier === "player" ? (newTierData?.hrs || 8) : 0;
+      return { eTier: pendingTier, eCredits };
+    }
+    return { eTier: tier, eCredits: bayCredits };
+  };
 
   const renderBook = () => {
     if (bkStep === 1 && bkDate && bkDur && bkTime && bkBay) {
-      const price = calcPrice(bkDate, bkTime, bkDur, tier, bayCredits, cfg);
+      const { eTier, eCredits } = effectiveTierOn(bkDate);
+      const price = calcPrice(bkDate, bkTime, bkDur, eTier, eCredits, cfg);
       const durHrs = bkDur * 0.5;
       return <>
         <div style={S.hd}><button style={S.bk} onClick={() => setBkStep(0)}>{X.chevL(18)}</button><h2 style={S.ht}>Confirm Booking</h2></div>
@@ -867,9 +884,12 @@ export default function BirdieGolfWebsite() {
           <div>
             <div style={S.confCard}>
               {[["Date", fmtDateLong(bkDate)], ["Duration", durHrs + " hr" + (durHrs > 1 ? "s" : "")], ["Time", bkTime], ["Bay", "Bay " + bkBay]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
-              {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{tier === "early_birdie" ? "Free Window" : "Credits Used"}</span><span style={{ ...S.confV, color: tier === "early_birdie" ? "#4A8B6E" : "#2D8A5E" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
+              {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{eTier === "early_birdie" ? "Free Window" : "Credits Used"}</span><span style={{ ...S.confV, color: eTier === "early_birdie" ? "#4A8B6E" : "#2D8A5E" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
               {price.disc > 0 && <div style={S.confRow}><span style={S.confL}>Member Discount</span><span style={{ ...S.confV, color: "#2D8A5E" }}>-${price.disc.toFixed(2)}</span></div>}
               {price.tax > 0 && <div style={S.confRow}><span style={S.confL}>Tax (7%)</span><span style={S.confV}>${price.tax.toFixed(2)}</span></div>}
+              {eTier !== tier && <div style={{ background: "#FFF5E5", border: "1px solid #E8890C33", borderRadius: 8, padding: "8px 12px", marginBottom: 8 }}>
+                <p style={{ fontSize: 11, color: "#E8890C", fontWeight: 600 }}>Priced as {TIERS[eTier]?.n} — your new plan starting {renewDate}</p>
+              </div>}
               <div style={S.confDiv} />
               <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700 }}>${price.total.toFixed(2)}</span></div>
             </div>
@@ -959,7 +979,8 @@ export default function BirdieGolfWebsite() {
       </>}
 
       {bkDate && bkDur && bkTime && bkBay && (() => {
-        const price = calcPrice(bkDate, bkTime, bkDur, tier, bayCredits, cfg);
+        const { eTier: pvTier, eCredits: pvCredits } = effectiveTierOn(bkDate);
+        const price = calcPrice(bkDate, bkTime, bkDur, pvTier, pvCredits, cfg);
         return <div style={S.pricePreview}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Total</span>
