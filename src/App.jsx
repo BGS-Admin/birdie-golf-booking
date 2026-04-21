@@ -568,13 +568,6 @@ export default function BirdieGolfWebsite() {
         </div>
         <button style={{ ...S.b1, marginTop: 16, opacity: ph.length >= 10 && !otpSending ? 1 : 0.4 }} disabled={otpSending} onClick={async () => {
           if (ph.length < 10 || otpSending) return;
-          setOtpSending(true);
-          const code = Math.floor(100000 + Math.random() * 900000).toString();
-          setOtpCode(code);
-          try {
-            square("sms.send", { phone: ph, code });
-          } catch(e) { console.warn("SMS failed", e); }
-          setOtpSending(false);
           setAuthStep("otp");
         }}>{otpSending ? "Sending code…" : "Continue"}</button>
         <div style={LS.footer}>
