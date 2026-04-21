@@ -789,11 +789,13 @@ export default function BirdieGolfWebsite() {
         <h3 style={S.sh}>My Plans</h3>
         <div style={{ display: "grid", gridTemplateColumns: (tierData && tier !== "none" && totL > 0) ? "1fr 1fr" : "1fr", gap: 12, alignItems: "stretch" }}>
           {tierData && tier !== "none" && (
-            <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <p style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{tierData.n} Plan</p>
-              <p style={{ fontSize: 12, color: "#ffffffbb", marginTop: 2 }}>${tierData.price}/mo{renewDate ? ` · Renews ${renewDate}` : ""}</p>
-              {pendingTier && TIERS[pendingTier] && <p style={{ fontSize: 11, color: "#ffffffcc", marginTop: 3, fontWeight: 600 }}>⟶ Switching to {TIERS[pendingTier].n} on {renewDate}</p>}
-              <div style={{ marginTop: 10 }}>
+            <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, display: "flex", flexDirection: "column" }}>
+              <div>
+                <p style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{tierData.n} Plan</p>
+                <p style={{ fontSize: 12, color: "#ffffffbb", marginTop: 2 }}>${tierData.price}/mo{renewDate ? ` · Renews ${renewDate}` : ""}</p>
+                {pendingTier && TIERS[pendingTier] && <p style={{ fontSize: 11, color: "#ffffffcc", marginTop: 3, fontWeight: 600 }}>⟶ Switching to {TIERS[pendingTier].n} on {renewDate}</p>}
+              </div>
+              <div style={{ marginTop: "auto", paddingTop: 10 }}>
                 {tier === "player" && <p style={{ fontSize: 12, color: "#fff", fontWeight: 600 }}>{bayCredits} out of 8 bay credits remaining</p>}
                 {tier === "early_birdie" && <p style={{ fontSize: 12, color: "#fff", fontWeight: 600 }}>Unlimited credits on weekday non-peak hours</p>}
                 {tier === "champion" && <p style={{ fontSize: 12, color: "#fff", fontWeight: 600 }}>Unlimited credits</p>}
@@ -802,12 +804,12 @@ export default function BirdieGolfWebsite() {
             </div>
           )}
           {totL > 0 && creditCoach && (
-            <div style={{ background: "#5B6DCD12", border: "1px solid #5B6DCD33", borderRadius: 18, padding: "22px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <div style={{ marginBottom: 2 }}>
+            <div style={{ background: "#5B6DCD12", border: "1px solid #5B6DCD33", borderRadius: 18, padding: "22px 20px", display: "flex", flexDirection: "column" }}>
+              <div>
                 <p style={{ fontSize: 16, fontWeight: 700, color: "#1a1a1a" }}>{creditPkg}</p>
+                <p style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{creditCoach.n} · Expires {creditExp}</p>
               </div>
-              <p style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{creditCoach.n} · Expires {creditExp}</p>
-              <div style={{ marginTop: 10 }}>
+              <div style={{ marginTop: "auto", paddingTop: 10 }}>
                 <p style={{ fontSize: 12, color: "#5B6DCD", fontWeight: 600 }}>{totL} out of {maxL} lesson credits remaining</p>
               </div>
             </div>
