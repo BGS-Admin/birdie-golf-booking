@@ -1684,7 +1684,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
    STYLES
    ═══════════════════════════════════════════════════════════ */
 
-const CSS = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:3px;height:3px}::-webkit-scrollbar-thumb{background:#ddd;border-radius:4px}input:focus,button:focus{outline:none}@keyframes ti{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}button:active{transform:scale(0.97)}`;
+const CSS = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}html,body,#root{height:100%;overflow:hidden}::-webkit-scrollbar{width:3px;height:3px}::-webkit-scrollbar-thumb{background:#ddd;border-radius:4px}input:focus,button:focus{outline:none}@keyframes ti{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}button:active{transform:scale(0.97)}`;
 
 const LS = {
   w: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(155deg,#0B2E1A,#1A5C3A 45%,#2D8A5E)", fontFamily: ff, padding: 20 },
