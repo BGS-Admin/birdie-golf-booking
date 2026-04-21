@@ -343,6 +343,7 @@ export default function BirdieGolfWebsite() {
   const [memModal, setMemModal] = useState(null);
   const [renewDate, setRenewDate] = useState(null);
   const [memberSince, setMemberSince] = useState(null);
+  const [pendingTier, setPendingTier] = useState(null);
 
   /* Bay booking */
   const [bkStep, setBkStep] = useState(0);
@@ -417,13 +418,14 @@ export default function BirdieGolfWebsite() {
       sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""),
     })));
     // Membership — always reload from Supabase (reflects admin changes)
-    const custData = await sb.get("customers", `id=eq.${cid}&select=tier,bay_credits_remaining,bay_credits_total,renewal_date,member_since`);
+    const custData = await sb.get("customers", `id=eq.${cid}&select=tier,bay_credits_remaining,bay_credits_total,renewal_date,member_since,pending_tier`);
     if (custData?.[0]) {
       const c = custData[0];
       setTier(c.tier || "none");
       setBayCredits(c.tier === "player" ? Math.min(c.bay_credits_remaining || 0, 8) : (c.bay_credits_remaining || 0));
       if (c.renewal_date) setRenewDate(new Date(c.renewal_date + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
       if (c.member_since) setMemberSince(new Date(c.member_since + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+      setPendingTier(c.pending_tier || null);
     }
     // Active lesson package
     const pkgs = await sb.get("lesson_packages", `customer_id=eq.${cid}&status=eq.active&select=*&order=purchase_date.desc`);
@@ -788,6 +790,7 @@ export default function BirdieGolfWebsite() {
             <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <p style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{tierData.n} Plan</p>
               <p style={{ fontSize: 12, color: "#ffffffbb", marginTop: 2 }}>${tierData.price}/mo{renewDate ? ` · Renews ${renewDate}` : ""}</p>
+              {pendingTier && TIERS[pendingTier] && <p style={{ fontSize: 11, color: "#ffffffcc", marginTop: 3, fontWeight: 600 }}>⟶ Switching to {TIERS[pendingTier].n} on {renewDate}</p>}
               <div style={{ marginTop: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <span style={{ fontSize: 10, color: "#ffffffbb" }}>{tier === "player" ? "Bay Hours" : tier === "early_birdie" ? "Mon-Fri 7am–4pm" : "Unlimited"}</span>
@@ -1171,6 +1174,10 @@ export default function BirdieGolfWebsite() {
           {tier === "champion" && <p style={{ fontSize: 13, color: "#ffffffcc", marginTop: 14 }}>Unlimited Bay Access</p>}
           {totL > 0 && <p style={{ fontSize: 11, color: "#ffffffaa", marginTop: 10 }}>{totL} lesson credit{totL > 1 ? "s" : ""} active</p>}
           <p style={{ fontSize: 11, color: "#ffffff88", marginTop: 10 }}>Renews {renewDate}</p>
+          {pendingTier && TIERS[pendingTier] && <div style={{ marginTop: 10, background: "#ffffff22", borderRadius: 8, padding: "8px 12px" }}>
+            <p style={{ fontSize: 12, color: "#fff", fontWeight: 600 }}>⟶ Switching to {TIERS[pendingTier].n} Plan on {renewDate}</p>
+            <p style={{ fontSize: 11, color: "#ffffffbb", marginTop: 2 }}>Your current plan stays active until then.</p>
+          </div>}
         </div>
         <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <div style={S.detailCard}><h4 style={S.detailH}>Plan Details</h4>
@@ -1191,7 +1198,12 @@ export default function BirdieGolfWebsite() {
           {t.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}><span style={{ color: t.c, flexShrink: 0 }}>{X.chk(14)}</span><span style={{ fontSize: 12 }}>{p}</span></div>)}
           {t.enrollmentFee && <p style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>One-time ${t.enrollmentFee} enrollment fee at sign-up.</p>}
           {k === "early_birdie" && <p style={{ fontSize: 11, fontWeight: 700, color: "#4A8B6E", marginTop: 4 }}>Mon-Fri 7am-4pm only</p>}
-          <div style={{ marginTop: 14 }}>{k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span> : hasCard ? <button style={{ ...S.b1, background: t.c }} onClick={() => setMemModal({ type: (!tier || tier === "none") ? "join" : "switch", to: k })}>{(!tier || tier === "none") ? "Get Started" : Object.keys(TIERS).indexOf(k) > Object.keys(TIERS).indexOf(tier) ? "Upgrade" : "Switch"}</button> : <button style={{ ...S.b1, background: "#ccc" }} onClick={() => setTab("profile")}>Add Card First</button>}</div>
+          <div style={{ marginTop: 14 }}>
+            {k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span>
+            : k === pendingTier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Scheduled on {renewDate}</span>
+            : hasCard ? <button style={{ ...S.b1, background: pendingTier ? "#aaa" : t.c }} disabled={!!pendingTier} onClick={() => !pendingTier && setMemModal({ type: (!tier || tier === "none") ? "join" : "switch", to: k })}>{(!tier || tier === "none") ? "Get Started" : Object.keys(TIERS).indexOf(k) > Object.keys(TIERS).indexOf(tier) ? "Upgrade" : "Switch"}</button>
+            : <button style={{ ...S.b1, background: "#ccc" }} onClick={() => setTab("profile")}>Add Card First</button>}
+          </div>
         </div>)}
       </div>}
 
@@ -1297,29 +1309,45 @@ export default function BirdieGolfWebsite() {
         </div></div>;
       })()}
 
-      {memModal?.type === "switch" && <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
-        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Switch to {TIERS[memModal.to]?.n}?</h3>
-        <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 16 }}>Your plan will change to {TIERS[memModal.to]?.n} (${TIERS[memModal.to]?.price}/mo) starting next billing cycle.</p>
-        <div style={{ display: "flex", gap: 10 }}><button style={S.b2} onClick={() => setMemModal(null)}>Cancel</button><button style={{ ...S.b1, flex: 2, background: TIERS[memModal.to]?.c }} onClick={async () => {
-          await sb.patch("customers", `id=eq.${customerId}`, { tier: memModal.to });
-          await sb.post("membership_history", { customer_id: customerId, action: Object.keys(TIERS).indexOf(memModal.to) > Object.keys(TIERS).indexOf(tier) ? "upgrade" : "downgrade", tier: memModal.to, amount: TIERS[memModal.to]?.price });
-          const newTier = memModal.to; const newPrice = TIERS[newTier]?.price || 0;
-          setTier(newTier); setBayCredits(newTier === "player" ? Math.min(TIERS[newTier]?.hrs || 0, 8) : TIERS[newTier]?.hrs === -1 ? 999 : TIERS[newTier]?.hrs || 0);
-          const todayStr = new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
-          setMemberSince(todayStr); const rd=new Date(); rd.setMonth(rd.getMonth()+1); setRenewDate(rd.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}));
-          await sb.post("transactions", { customer_id: customerId, description: TIERS[newTier]?.n + " Membership", date: dateKey(new Date()), amount: newPrice, payment_label: "Visa ····4242" });
-          setTransactions(p => [{ desc: TIERS[newTier]?.n + " Membership", date: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}), method: "Visa ····4242", amt: "$" + newPrice + ".00" }, ...p]);
-          // Send membership confirmation email
-          sendEmail("membership", {
-            customer_name: onbF + " " + onbL,
-            customer_email: profEmail || onbE,
-            plan: TIERS[newTier]?.n + " Plan",
-            price: "$" + newPrice + "/mo",
-            renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
-          });
-          fire("Plan updated!"); setMemModal(null); setMemTab("current");
-        }}>Confirm Switch</button></div>
-      </div></div>}
+      {memModal?.type === "switch" && (() => {
+        const newT = TIERS[memModal.to];
+        const today = new Date(); today.setHours(0,0,0,0);
+        const rd = renewDate ? new Date(renewDate) : null;
+        const daysToRenewal = rd ? Math.ceil((rd - today) / 86400000) : 999;
+        const within7 = daysToRenewal <= 7;
+        return <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Switch to {newT?.n}?</h3>
+          {within7 ? <>
+            <div style={{ background: "#FFF5E5", border: "1px solid #E8890C44", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "#E8890C", marginBottom: 6 }}>Within 7 Days of Renewal</p>
+              <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>Given you are within 7 days of your renewal date, if you want to switch memberships, please give us a call at <strong>+1 (305) 456-4149</strong> or contact us through WhatsApp at <strong>+1 (305) 542-1222</strong>.</p>
+            </div>
+            <button style={S.b2} onClick={() => setMemModal(null)}>Close</button>
+          </> : <>
+            <div style={{ background: "#f7f7f5", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+              <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>You will stay on your <strong>current {TIERS[tier]?.n} Plan</strong> until <strong>{renewDate}</strong>. Starting on that date, you will be switched to the <strong>{newT?.n} Plan</strong> at ${newT?.price}/mo.</p>
+            </div>
+            <p style={{ fontSize: 12, color: "#aaa", marginBottom: 16 }}>No charge today. Your next billing cycle will reflect the new plan.</p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button style={S.b2} onClick={() => setMemModal(null)}>Cancel</button>
+              <button style={{ ...S.b1, flex: 2, background: newT?.c }} onClick={async () => {
+                await sb.patch("customers", `id=eq.${customerId}`, { pending_tier: memModal.to });
+                await sb.post("membership_history", { customer_id: customerId, action: "switch_scheduled", tier: memModal.to, amount: newT?.price, date: dateKey(new Date()) });
+                setPendingTier(memModal.to);
+                sendEmail("membership_switch", {
+                  customer_name: onbF + " " + onbL,
+                  customer_email: profEmail || onbE,
+                  current_plan: TIERS[tier]?.n,
+                  new_plan: newT?.n,
+                  new_price: "$" + newT?.price + "/mo",
+                  switch_date: renewDate,
+                });
+                fire("Switch scheduled for " + renewDate); setMemModal(null); setMemTab("current");
+              }}>Confirm Switch</button>
+            </div>
+          </>}
+        </div></div>;
+      })()}
     </>;
   };
 
