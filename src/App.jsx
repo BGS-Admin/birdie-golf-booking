@@ -104,7 +104,15 @@ function dateKey(d) { return d.toISOString().split("T")[0]; }
 function dayName(d) { return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]; }
 function isWeekend(d) { return d.getDay() === 0 || d.getDay() === 6; }
 function gen14() { const a = [], t = new Date(); t.setHours(0,0,0,0); for (let i = 0; i < 14; i++) { const d = new Date(t); d.setDate(t.getDate() + i); a.push(d); } return a; }
-function getHours(d) { return isWeekend(d) ? WK_TIMES : ALL_TIMES.filter(t => { const h = toH(t); return h >= 7 && h < 22; }); }
+function getHours(d, hoursConfig) {
+  if (hoursConfig) {
+    const wknd = isWeekend(d);
+    const open  = toH(wknd ? (hoursConfig.weekend_open  || "9:00 AM")  : (hoursConfig.weekday_open  || "7:00 AM"));
+    const close = toH(wknd ? (hoursConfig.weekend_close || "9:00 PM")  : (hoursConfig.weekday_close || "10:00 PM"));
+    return ALL_TIMES.filter(s => { const h = toH(s); return h >= open && h < close; });
+  }
+  return isWeekend(d) ? WK_TIMES : ALL_TIMES.filter(t => { const h = toH(t); return h >= 7 && h < 22; });
+}
 
 /* ─── Availability Logic ─── */
 function isBayBlocked(bayId, dt, slot, bayBlocks) {
@@ -135,8 +143,8 @@ function getBk(dt, slot, realBookings) {
   return occupied;
 }
 
-function getAvailBays(dt, startSlot, durSlots, bayBlocks, realBookings) {
-  const hrs = getHours(dt); const si = hrs.indexOf(startSlot);
+function getAvailBays(dt, startSlot, durSlots, bayBlocks, realBookings, hoursConfig) {
+  const hrs = getHours(dt, hoursConfig); const si = hrs.indexOf(startSlot);
   if (si === -1) return [];
   const needed = hrs.slice(si, si + durSlots);
   if (needed.length < durSlots) return [];
@@ -149,8 +157,8 @@ function isSameLocalDay(a, b) {
          a.getDate()     === b.getDate();
 }
 
-function getAllTimes(dt, durSlots, bayBlocks, realBookings) {
-  const hrs = getHours(dt), result = [];
+function getAllTimes(dt, durSlots, bayBlocks, realBookings, hoursConfig) {
+  const hrs = getHours(dt, hoursConfig), result = [];
   const now = new Date();
   const isToday = isSameLocalDay(dt, now);
   const currentH = now.getHours() + now.getMinutes() / 60;
@@ -171,8 +179,8 @@ function slotRate(dt, slot, cfg) { return isWeekend(dt) ? cfg.wk : isPeak(dt, sl
 const TAX_RATE = 0.07;
 const applyTax = (subtotal) => Math.round(subtotal * TAX_RATE * 100) / 100;
 
-function calcPrice(dt, startSlot, durSlots, tier, bayCredits, cfg) {
-  const hrs = getHours(dt), si = hrs.indexOf(startSlot), needed = hrs.slice(si, si + durSlots), durHrs = durSlots * 0.5;
+function calcPrice(dt, startSlot, durSlots, tier, bayCredits, cfg, hoursConfig) {
+  const hrs = getHours(dt, hoursConfig), si = hrs.indexOf(startSlot), needed = hrs.slice(si, si + durSlots), durHrs = durSlots * 0.5;
   if (tier === "champion") return { total: 0, disc: 0, credits: durHrs, base: 0, tax: 0, subtotal: 0 };
   let base = 0; needed.forEach(s => { base += slotRate(dt, s, cfg) * 0.5; });
   if (tier === "early_birdie") {
@@ -211,8 +219,8 @@ function lessonPrice(tier, hasCredits, creditCoachId, selCoach) {
 }
 
 /* Lesson helpers */
-function getLessonTimes(dt, coachFilter, bayBlocks, realBookings) {
-  const dn = dayName(dt), hrs = getHours(dt), times = new Set();
+function getLessonTimes(dt, coachFilter, bayBlocks, realBookings, hoursConfig) {
+  const dn = dayName(dt), hrs = getHours(dt, hoursConfig), times = new Set();
   const now = new Date();
   const isToday = isSameLocalDay(dt, now);
   const currentH = now.getHours() + now.getMinutes() / 60;
@@ -237,8 +245,8 @@ function getCoachesAt(dt, time, bayBlocks, realBookings) {
     return [1,2,3,4,5].some(bay => [time, next].every(sl => !getBk(dt, sl, realBookings).includes(bay) && !isBayBlocked(bay, dt, sl, bayBlocks)));
   });
 }
-function autoAssignBay(dt, time, bayBlocks, realBookings) {
-  const hrs = getHours(dt), si = hrs.indexOf(time), needed = [time, hrs[si + 1]];
+function autoAssignBay(dt, time, bayBlocks, realBookings, hoursConfig) {
+  const hrs = getHours(dt, hoursConfig), si = hrs.indexOf(time), needed = [time, hrs[si + 1]];
   for (let bay = 1; bay <= 5; bay++) { if (needed.every(s => !getBk(dt, s, realBookings).includes(bay) && !isBayBlocked(bay, dt, s, bayBlocks))) return bay; }
   return 1;
 }
@@ -323,6 +331,8 @@ export default function BirdieGolfWebsite() {
 
   /* Config — loaded from Supabase */
   const [cfg, setCfg] = useState({ pk: 75, op: 50, wk: 50 });
+  const [hoursConfig, setHoursConfig] = useState(null);
+  const [enrollmentFeeEnabled, setEnrollmentFeeEnabled] = useState(true);
   const [bayBlocks, setBayBlocks] = useState([
     { id: 1, bays: [2], from: "2026-03-20", to: "2026-03-22", allDay: true, reason: "Trackman calibration" },
     { id: 2, bays: [1, 3], from: "2026-03-25", to: "2026-03-25", timeFrom: "5:00 PM", timeTo: "9:00 PM", allDay: false, reason: "Private event" },
@@ -399,6 +409,17 @@ export default function BirdieGolfWebsite() {
       if (blocks?.length) setBayBlocks(blocks);
       const allBks = await sb.get("bookings", "select=id,bay,date,start_time,duration_slots,status,type&status=neq.cancelled");
       if (allBks?.length) setAllBookings(allBks);
+      const settings = await sb.get("admin_settings", "select=*&limit=1");
+      if (settings?.[0]) {
+        const s = settings[0];
+        if (s.weekday_open) setHoursConfig({
+          weekday_open:  s.weekday_open,
+          weekday_close: s.weekday_close,
+          weekend_open:  s.weekend_open,
+          weekend_close: s.weekend_close,
+        });
+        if (s.enrollment_fee_enabled !== undefined) setEnrollmentFeeEnabled(s.enrollment_fee_enabled !== false);
+      }
     })();
   }, []);
 
@@ -890,7 +911,7 @@ export default function BirdieGolfWebsite() {
   const renderBook = () => {
     if (bkStep === 1 && bkDate && bkDur && bkTime && bkBay) {
       const { eTier, eCredits, warn } = effectiveTierOn(bkDate);
-      const price = calcPrice(bkDate, bkTime, bkDur, eTier, eCredits, cfg);
+      const price = calcPrice(bkDate, bkTime, bkDur, eTier, eCredits, cfg, hoursConfig);
       const durHrs = bkDur * 0.5;
 
       // Past-renewal Player warning — show blocking screen unless user has overridden
@@ -1001,7 +1022,7 @@ export default function BirdieGolfWebsite() {
 
       {bkDate && bkDur && <><h4 style={S.stepH}>Select Start Time</h4>
         <div style={{ ...S.timeGrid, gridTemplateColumns: isDesktop ? "repeat(6, 1fr)" : "repeat(4, 1fr)" }}>
-          {getAllTimes(bkDate, bkDur, bayBlocks, allBookings).map(({ time: t, open }) => {
+          {getAllTimes(bkDate, bkDur, bayBlocks, allBookings, hoursConfig).map(({ time: t, open }) => {
             const sel = bkTime === t, pk = isPeak(bkDate, t), wk = isWeekend(bkDate);
             return <button key={t} style={{ ...S.timeBtn, ...(sel ? S.timeSel : {}), ...(!open ? { opacity: 0.35, cursor: "not-allowed" } : {}) }}
               onClick={() => { if (open) { setBkTime(t); setBkBay(null); } }} disabled={!open}>
@@ -1014,7 +1035,7 @@ export default function BirdieGolfWebsite() {
 
       {bkDate && bkDur && bkTime && <><h4 style={S.stepH}>Select Bay</h4>
         <div style={S.bayGrid}>
-          {getAvailBays(bkDate, bkTime, bkDur, bayBlocks, allBookings).map(b => {
+          {getAvailBays(bkDate, bkTime, bkDur, bayBlocks, allBookings, hoursConfig).map(b => {
             const sel = bkBay === b.bay;
             return <button key={b.bay} style={{ ...S.bayBtn, ...(sel ? S.baySel : {}), ...(b.ok ? {} : S.bayOff) }} onClick={() => { if (b.ok) setBkBay(b.bay); }} disabled={!b.ok}>
               <span style={{ fontSize: 14, fontWeight: 700, color: sel ? "#fff" : b.ok ? "#1a1a1a" : "#ccc" }}>Bay {b.bay}</span>
@@ -1026,7 +1047,7 @@ export default function BirdieGolfWebsite() {
 
       {bkDate && bkDur && bkTime && bkBay && (() => {
         const { eTier: pvTier, eCredits: pvCredits, warn: pvWarn } = effectiveTierOn(bkDate);
-        const price = calcPrice(bkDate, bkTime, bkDur, pvTier, pvCredits, cfg);
+        const price = calcPrice(bkDate, bkTime, bkDur, pvTier, pvCredits, cfg, hoursConfig);
         return <div style={{ ...S.pricePreview, ...(pvWarn === "past_renewal_player" ? { borderColor: "#E8890C44", background: "#FFF5E508" } : {}) }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Total</span>
@@ -1055,7 +1076,7 @@ export default function BirdieGolfWebsite() {
     if (lesTab === "book" && lesStep === 1 && lesDate && lesTime && lesCoach) {
       const coach = COACHES.find(c => c.id === lesCoach);
       const lp = lessonPrice(tier, totL > 0, creditCoachId, lesCoach);
-      const bayAssigned = autoAssignBay(lesDate, lesTime, bayBlocks, allBookings);
+      const bayAssigned = autoAssignBay(lesDate, lesTime, bayBlocks, allBookings, hoursConfig);
       const wrongCoach = totL > 0 && lesCoach !== creditCoachId;
       const cancelFee = (tier && tier !== "none") ? (slotRate(lesDate, lesTime, cfg) * 0.8).toFixed(2) : slotRate(lesDate, lesTime, cfg).toFixed(2);
       return <>
@@ -1138,7 +1159,7 @@ export default function BirdieGolfWebsite() {
           <h4 style={S.stepH}>Select Date</h4>
           <div style={S.dateScroll}>{days14.map(d => { const dn = dayName(d); const hasCoach = COACHES.some(c => (c.av[dn] || []).length > 0); return <DateBtn key={dateKey(d)} d={d} sel={lesDate && dateKey(lesDate) === dateKey(d)} disabled={!hasCoach} />; })}</div>
           {lesDate && <><h4 style={S.stepH}>Select Start Time</h4><div style={{ ...S.timeGrid, gridTemplateColumns: isDesktop ? "repeat(6,1fr)" : "repeat(4,1fr)" }}>
-            {getLessonTimes(lesDate, null, bayBlocks, allBookings).map(t => { const sel = lesTime === t; return <button key={t} style={{ ...S.timeBtn, ...(sel ? { ...S.timeSel, background: "#5B6DCD", borderColor: "#5B6DCD" } : { borderColor: "#5B6DCD44" }) }} onClick={() => { setLesTime(t); setLesCoach(null); }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : "#1a1a1a" }}>{t}</span></button>; })}
+            {getLessonTimes(lesDate, null, bayBlocks, allBookings, hoursConfig).map(t => { const sel = lesTime === t; return <button key={t} style={{ ...S.timeBtn, ...(sel ? { ...S.timeSel, background: "#5B6DCD", borderColor: "#5B6DCD" } : { borderColor: "#5B6DCD44" }) }} onClick={() => { setLesTime(t); setLesCoach(null); }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : "#1a1a1a" }}>{t}</span></button>; })}
           </div></>}
           {lesDate && lesTime && <><h4 style={S.stepH}>Select Instructor</h4><div style={{ display: "flex", gap: 10 }}>
             {getCoachesAt(lesDate, lesTime, bayBlocks, allBookings).map(c => <CoachCard key={c.id} c={c} sel={lesCoach === c.id} locked={totL > 0 && c.id !== creditCoachId} onClick={() => { if (!(totL > 0 && c.id !== creditCoachId)) setLesCoach(c.id); }} />)}
@@ -1148,14 +1169,14 @@ export default function BirdieGolfWebsite() {
           <div style={{ display: "flex", gap: 10 }}>{COACHES.map(c => <CoachCard key={c.id} c={c} sel={lesCoach === c.id} locked={totL > 0 && c.id !== creditCoachId} onClick={() => { if (!(totL > 0 && c.id !== creditCoachId)) { setLesCoach(c.id); setLesDate(null); setLesTime(null); } }} />)}</div>
           {lesCoach && <><h4 style={S.stepH}>Select Date</h4><div style={S.dateScroll}>{days14.map(d => { const coach = COACHES.find(c => c.id === lesCoach); const hasSlots = (coach?.av[dayName(d)] || []).length > 0; return <DateBtn key={dateKey(d)} d={d} sel={lesDate && dateKey(lesDate) === dateKey(d)} disabled={!hasSlots} />; })}</div></>}
           {lesCoach && lesDate && <><h4 style={S.stepH}>Select Start Time</h4><div style={{ ...S.timeGrid, gridTemplateColumns: isDesktop ? "repeat(6,1fr)" : "repeat(4,1fr)" }}>
-            {getLessonTimes(lesDate, COACHES.find(c => c.id === lesCoach), bayBlocks, allBookings).map(t => { const sel = lesTime === t; return <button key={t} style={{ ...S.timeBtn, ...(sel ? { ...S.timeSel, background: "#5B6DCD", borderColor: "#5B6DCD" } : { borderColor: "#5B6DCD44" }) }} onClick={() => setLesTime(t)}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : "#1a1a1a" }}>{t}</span></button>; })}
+            {getLessonTimes(lesDate, COACHES.find(c => c.id === lesCoach), bayBlocks, allBookings, hoursConfig).map(t => { const sel = lesTime === t; return <button key={t} style={{ ...S.timeBtn, ...(sel ? { ...S.timeSel, background: "#5B6DCD", borderColor: "#5B6DCD" } : { borderColor: "#5B6DCD44" }) }} onClick={() => setLesTime(t)}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : "#1a1a1a" }}>{t}</span></button>; })}
           </div></>}
         </>}
 
         {lesDate && lesTime && lesCoach && (() => {
           const coach = COACHES.find(c => c.id === lesCoach), lp = lessonPrice(tier, totL > 0, creditCoachId, lesCoach);
           return <div style={{ ...S.pricePreview, borderColor: "#5B6DCD33", background: "#5B6DCD08", marginTop: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><p style={{ fontSize: 13, fontWeight: 600 }}>{coach?.n} · 1 hr</p><p style={{ fontSize: 11, color: "#888" }}>Bay {autoAssignBay(lesDate, lesTime, bayBlocks, allBookings)}</p></div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><p style={{ fontSize: 13, fontWeight: 600 }}>{coach?.n} · 1 hr</p><p style={{ fontSize: 11, color: "#888" }}>Bay {autoAssignBay(lesDate, lesTime, bayBlocks, allBookings, hoursConfig)}</p></div>
             <span style={{ fontSize: 16, fontWeight: 700, color: lp.credit ? "#2D8A5E" : "#5B6DCD" }}>{lp.label}</span></div></div>;
         })()}
         {lesDate && lesTime && lesCoach && <button style={{ ...S.b1, marginTop: 12, background: "#5B6DCD" }} onClick={() => {
@@ -1265,7 +1286,7 @@ export default function BirdieGolfWebsite() {
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><span style={{ background: t.c, color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontFamily: mono, letterSpacing: 1 }}>{t.badge}</span><span style={{ fontSize: 16, fontWeight: 700 }}>{t.n}</span></div>
           <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>${t.price}<span style={{ fontSize: 13, color: "#888", fontWeight: 400 }}>/mo</span></p>
           {t.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}><span style={{ color: t.c, flexShrink: 0 }}>{X.chk(14)}</span><span style={{ fontSize: 12 }}>{p}</span></div>)}
-          {t.enrollmentFee && <p style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>One-time ${t.enrollmentFee} enrollment fee at sign-up.</p>}
+          {t.enrollmentFee && enrollmentFeeEnabled && <p style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>One-time ${t.enrollmentFee} enrollment fee at sign-up.</p>}
           {k === "early_birdie" && <p style={{ fontSize: 11, fontWeight: 700, color: "#4A8B6E", marginTop: 4 }}>Mon-Fri 7am-4pm only</p>}
           <div style={{ marginTop: 14 }}>
             {k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span>
@@ -1278,7 +1299,7 @@ export default function BirdieGolfWebsite() {
 
       {memModal?.type === "join" && (() => {
         const t = TIERS[memModal.to];
-        const ef = t?.enrollmentFee || 0;
+        const ef = enrollmentFeeEnabled ? (t?.enrollmentFee || 0) : 0;
         const subtotal = (t?.price || 0) + ef;
         const tax = applyTax(subtotal);
         const total = subtotal + tax;
