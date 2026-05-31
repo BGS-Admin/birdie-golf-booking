@@ -49,7 +49,8 @@ const square = async (action, params = {}) => {
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
       body: JSON.stringify({ action, ...params }),
     });
-    return r.ok ? await r.json() : null;
+    const json = await r.json().catch(() => null);
+    return json;
   } catch { return null; }
 };
 
@@ -629,6 +630,7 @@ export default function BirdieGolfWebsite() {
         <button style={{ ...S.b1, marginTop: 16, opacity: otp.every(d => d) ? 1 : 0.4 }} onClick={async () => {
           if (!otp.every(d => d)) return;
           const verifyRes = await square("otp.verify", { phone: ph, code: otp.join("") });
+          console.log("otp.verify response:", JSON.stringify(verifyRes));
           if (!verifyRes || !verifyRes.approved) {
             fire("Incorrect code — please try again");
             setOtp(["","","","","",""]);
