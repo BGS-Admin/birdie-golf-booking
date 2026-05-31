@@ -1814,7 +1814,7 @@ const LS = {
   phRow: { display: "flex", alignItems: "center", gap: 8, background: "#f8f8f6", borderRadius: 12, padding: "0 14px", border: "1px solid #e8e8e6" },
   phPre: { fontSize: 14, fontWeight: 600, color: "#555", flexShrink: 0 },
   phIn: { flex: 1, border: "none", background: "transparent", padding: "14px 0", fontSize: 16, fontFamily: ff, color: "#1a1a1a" },
-  demo: { marginTop: 14, textAlign: "center", fontSize: 12, color: "#2D8A5E", fontWeight: 600, background: "#2D8A5E10", padding: "8px 16px", borderRadius: 20 },
+
   tagline: { fontSize: 16, fontWeight: 600, color: "#0B2E1A", textAlign: "center", marginBottom: 10 },
   features: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexWrap: "wrap", marginBottom: 20 },
   feat: { fontSize: 11, color: "#555", whiteSpace: "nowrap" },
