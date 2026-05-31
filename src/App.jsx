@@ -39,7 +39,7 @@ const sb = {
 
 /* ─── Square Integration ─── */
 const SQUARE_APP_ID = "sq0idp-prGGxuOWteVLYPoXaawqlQ";
-const SQUARE_LOCATION_ID = "LHYS7H99XC8WD";
+const SQUARE_LOCATION_ID = "LTNVZZ9PJH2K8";
 const SQUARE_FN_URL = `${SUPABASE_URL}/functions/v1/square-proxy`;
 
 const square = async (action, params = {}) => {
@@ -263,42 +263,95 @@ function useWidth() {
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════ */
 /* ─── Add Card Form (isolated to prevent focus loss on re-render) ─── */
-const AddCardForm = React.memo(({ onSave, onCancel, profIn }) => {
-  const [num, setNum] = React.useState("");
-  const [exp, setExp] = React.useState("");
-  const [cvc, setCvc] = React.useState("");
-  const expRef = React.useRef(); const cvcRef = React.useRef();
+const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId }) => {
+  const containerRef = React.useRef();
+  const cardRef = React.useRef(null);
+  const paymentsRef = React.useRef(null);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState("");
+
+  React.useEffect(() => {
+    let destroyed = false;
+
+    const loadSdk = async () => {
+      // Load Square Web Payments SDK if not already loaded
+      if (!window.Square) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://web.squarecdn.com/v1/square.js";
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
+
+      if (destroyed) return;
+
+      try {
+        const payments = window.Square.payments(appId, locationId);
+        paymentsRef.current = payments;
+        const card = await payments.card({
+          style: {
+            ".input-container": { borderRadius: "10px", borderColor: "#e0ddd6" },
+            ".input-container.is-focus": { borderColor: "#072814" },
+            input: { fontFamily: "DM Sans, sans-serif", fontSize: "14px", color: "#1a1a1a" },
+            "input::placeholder": { color: "#bbb" },
+          }
+        });
+        if (destroyed) { card.destroy(); return; }
+        await card.attach(containerRef.current);
+        cardRef.current = card;
+        setLoading(false);
+      } catch (e) {
+        if (!destroyed) setErr("Failed to load card form. Please refresh and try again.");
+        setLoading(false);
+      }
+    };
+
+    loadSdk();
+    return () => {
+      destroyed = true;
+      cardRef.current?.destroy();
+    };
+  }, [appId, locationId]);
+
+  const handleSave = async () => {
+    if (!cardRef.current || saving) return;
+    setSaving(true);
+    setErr("");
+    try {
+      const result = await cardRef.current.tokenize();
+      if (result.status === "OK") {
+        const nonce = result.token;
+        const details = result.details?.card || {};
+        const brand = details.brand || "Card";
+        const last4 = details.last4 || "····";
+        const expMonth = details.expMonth ? String(details.expMonth).padStart(2, "0") : "";
+        const expYear = details.expYear ? String(details.expYear).slice(-2) : "";
+        const exp = expMonth && expYear ? expMonth + "/" + expYear : "";
+        await onSave({ nonce, brand, last4, exp });
+      } else {
+        const msg = result.errors?.[0]?.message || "Card verification failed. Please check your details.";
+        setErr(msg);
+      }
+    } catch (e) {
+      setErr("Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div style={{ marginTop: 12 }}>
-      <input
-        style={profIn} placeholder="Card number" type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={19}
-        value={num} autoComplete="cc-number"
-        onChange={e => {
-          const v = e.target.value.replace(/\D/g,"").slice(0,16);
-          const fmt = v.match(/.{1,4}/g)?.join(" ") || v;
-          if (fmt !== num) { setNum(fmt); if (v.length === 16) expRef.current?.focus(); }
-        }}
-      />
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        <input
-          ref={expRef} style={{ ...profIn, flex: 1 }} placeholder="MM/YY" type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={5}
-          value={exp} autoComplete="cc-exp"
-          onChange={e => {
-            let v = e.target.value.replace(/\D/g,"").slice(0,4);
-            if (v.length > 2) v = v.slice(0,2) + "/" + v.slice(2);
-            if (v !== exp) { setExp(v); if (v.length === 5) cvcRef.current?.focus(); }
-          }}
-        />
-        <input
-          ref={cvcRef} style={{ ...profIn, flex: 1 }} placeholder="CVC" type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4}
-          value={cvc} autoComplete="cc-csc"
-          onChange={e => { const v = e.target.value.replace(/\D/g,"").slice(0,4); if (v !== cvc) setCvc(v); }}
-        />
-      </div>
+      {loading && <p style={{ fontSize: 13, color: "#888", textAlign: "center", padding: "20px 0" }}>Loading secure card form…</p>}
+      {err && <p style={{ fontSize: 12, color: "#E03928", marginBottom: 8 }}>{err}</p>}
+      <div ref={containerRef} style={{ display: loading ? "none" : "block", marginBottom: 12 }} />
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <button style={{ background: "#f0f0ee", color: "#1a1a1a", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 1 }} onClick={onCancel}>Cancel</button>
-        <button style={{ background: "#2D8A5E", color: "#fff", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 2 }} onClick={() => onSave({ num, exp, cvc })}>Save Card</button>
+        <button style={{ background: "#072814", color: "#fff", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 2, opacity: loading || saving ? 0.5 : 1 }} disabled={loading || saving} onClick={handleSave}>{saving ? "Saving…" : "Save Card"}</button>
       </div>
+      <p style={{ fontSize: 10, color: "#ccc", textAlign: "center", marginTop: 8 }}>Secured by Square</p>
     </div>
   );
 });
@@ -1476,29 +1529,14 @@ export default function BirdieGolfWebsite() {
       <div style={S.sec}><h4 style={S.secL}>Payment Methods</h4>
         {cards.map(c => <div key={c.id} style={S.fRow}><div style={{ flex: 1 }}><p style={{ fontSize: 14, fontWeight: 600 }}>{c.brand} ····{c.last4}</p><p style={{ fontSize: 11, color: "#888" }}>Exp {c.exp}</p></div>
           {cards.length > 1 ? <button style={S.delCardBtn} onClick={() => { setCards(p => p.filter(x => x.id !== c.id)); fire("Card removed"); }}>{X.trash(14)}</button> : <span style={{ fontSize: 10, color: "#aaa", fontWeight: 600 }}>Required</span>}</div>)}
-        {addCard ? <AddCardForm profIn={S.profIn} onCancel={() => setAddCard(false)} onSave={async ({ num, exp, cvc }) => {
-            const rawNum = num.replace(/\D/g, "");
-            const rawExp = exp.replace(/\D/g, "");
-            const rawCvc = cvc.replace(/\D/g, "");
-            // Validate card number (Luhn algorithm)
-            const luhn = n => { let s=0,d=false; for(let i=n.length-1;i>=0;i--){let v=+n[i];if(d&&(v*=2)>9)v-=9;s+=v;d=!d;}return s%10===0; };
-            if (rawNum.length < 15 || rawNum.length > 16) { fire("Invalid card number"); return; }
-            if (!luhn(rawNum)) { fire("Card number is invalid"); return; }
-            if (rawExp.length !== 4) { fire("Invalid expiry (use MM/YY)"); return; }
-            const expMonth = parseInt(rawExp.slice(0,2));
-            const expYear = parseInt("20" + rawExp.slice(2));
-            const now = new Date();
-            if (expMonth < 1 || expMonth > 12 || new Date(expYear, expMonth) < now) { fire("Card has expired"); return; }
-            if (rawCvc.length < 3 || rawCvc.length > 4) { fire("Invalid CVC"); return; }
-            // Detect brand
-            const brand = rawNum[0] === "4" ? "Visa" : rawNum[0] === "5" ? "Mastercard" : rawNum.startsWith("34") || rawNum.startsWith("37") ? "Amex" : "Card";
-            const last4 = rawNum.slice(-4);
-            // Save to Square via proxy then to Supabase
+        {addCard ? <AddCardForm appId={SQUARE_APP_ID} locationId={SQUARE_LOCATION_ID} onCancel={() => setAddCard(false)} onSave={async ({ nonce, brand, last4, exp }) => {
+            // Tokenize via Square Web Payments SDK — nonce is a one-time secure token
             const sqResult = await square("card.create", {
               square_customer_id: sqCustId,
-              source_id: "cnon:card-nonce-ok", // sandbox test nonce — replace with Web Payments SDK nonce in production
+              source_id: nonce,
             });
-            const sqCardId = sqResult?.card?.id || null;
+            if (!sqResult?.card?.id) { fire("Failed to save card. Please try again."); return; }
+            const sqCardId = sqResult.card.id;
             const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: sqCardId });
             const savedId = Array.isArray(saved) ? saved[0]?.id : saved?.id;
             setCards(p => [...p, { id: savedId || Date.now(), brand, last4, exp, square_card_id: sqCardId }]);
