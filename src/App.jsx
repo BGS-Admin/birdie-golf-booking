@@ -316,6 +316,7 @@ export default function BirdieGolfWebsite() {
   const [otp, setOtp] = useState(["","","","","",""]);
   const [otpCode, setOtpCode] = useState("");
   const [otpSending, setOtpSending] = useState(false);
+  const [verifySid, setVerifySid] = useState("");
   const [onbF, setOnbF] = useState("");
   const [onbL, setOnbL] = useState("");
   const [onbE, setOnbE] = useState("");
@@ -599,6 +600,7 @@ export default function BirdieGolfWebsite() {
             const res = await square("otp.send", { phone: ph });
             console.log("otp.send response:", JSON.stringify(res));
             if (res && res.sent) {
+              if (res.sid) setVerifySid(res.sid);
               setAuthStep("otp");
             } else {
               fire(res?.error || "Failed to send code. Please try again.");
@@ -630,7 +632,7 @@ export default function BirdieGolfWebsite() {
         </div>
         <button style={{ ...S.b1, marginTop: 16, opacity: otp.every(d => d) ? 1 : 0.4 }} onClick={async () => {
           if (!otp.every(d => d)) return;
-          const verifyRes = await square("otp.verify", { phone: ph, code: otp.join("") });
+          const verifyRes = await square("otp.verify", { phone: ph, code: otp.join(""), sid: verifySid });
           console.log("otp.verify response:", JSON.stringify(verifyRes));
           if (!verifyRes || !verifyRes.approved) {
             fire("Incorrect code — please try again");
@@ -887,7 +889,7 @@ export default function BirdieGolfWebsite() {
         <a href="https://wa.me/13055421222" target="_blank" rel="noopener noreferrer" style={{ ...S.contactBtn, color: "#25D366" }}>{X.whatsapp(16)} WhatsApp</a>
       </div>
 
-      <button style={{ ...S.b1, background: "#f0f0ee", color: "#888", marginBottom: 40 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOtpCode(""); setOnbF(""); setOnbL(""); setOnbE(""); }}>
+      <button style={{ ...S.b1, background: "#f0f0ee", color: "#888", marginBottom: 40 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOtpCode(""); setVerifySid(""); setOnbF(""); setOnbL(""); setOnbE(""); }}>
         {X.out(16)} Sign Out
       </button>
     </>
@@ -1513,7 +1515,7 @@ export default function BirdieGolfWebsite() {
       </>}
       <p style={{ fontSize: 10, color: "#ccc", textAlign: "center", marginTop: 14 }}>Powered by Square</p></div>
 
-    <button style={{ ...S.b1, background: "#E03928", marginTop: 8 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOtpCode(""); setOnbF(""); setOnbL(""); setOnbE(""); }}>{X.out(16)} Sign Out</button>
+    <button style={{ ...S.b1, background: "#E03928", marginTop: 8 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOtpCode(""); setVerifySid(""); setOnbF(""); setOnbL(""); setOnbE(""); }}>{X.out(16)} Sign Out</button>
 
     {editModal && <div style={S.ov} onClick={() => setEditModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
       {editModal.step === "edit" ? <>
