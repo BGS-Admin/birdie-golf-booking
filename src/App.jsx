@@ -79,7 +79,7 @@ const X = {
 /* ─── Business Constants ─── */
 const TIERS = {
   starter:      { n: "Starter",      c: "#7AB89A", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate"] },
-  early_birdie: { n: "Early Birdie", c: "#4A8B6E", badge: "EBD", price: 150, hrs: -1, enrollmentFee: 50, perks: ["Unlimited bay access Mon-Fri 7am-4pm", "Full rate applies outside those hours", "Members-only events"] },
+  early_birdie: { n: "Early Birdie", c: "#00305B", badge: "EBD", price: 150, hrs: -1, enrollmentFee: 50, perks: ["Unlimited bay access Mon-Fri 7am-4pm", "Full rate applies outside those hours", "Members-only events"] },
   player:       { n: "Player",       c: "#2D8A5E", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hrs bay rental/mo", "20% off additional hours", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
   champion:     { n: "Champion",     c: "#124A2B", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited bay rental (max 2hr/booking)", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
 };
