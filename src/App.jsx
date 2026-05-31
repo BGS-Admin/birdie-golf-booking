@@ -593,7 +593,19 @@ export default function BirdieGolfWebsite() {
         </div>
         <button style={{ ...S.b1, marginTop: 16, opacity: ph.length >= 10 && !otpSending ? 1 : 0.4 }} disabled={otpSending} onClick={async () => {
           if (ph.length < 10 || otpSending) return;
-          setAuthStep("otp");
+          setOtpSending(true);
+          try {
+            const res = await square("otp.send", { phone: ph });
+            if (res && res.sent) {
+              setAuthStep("otp");
+            } else {
+              fire(res?.error || "Failed to send code. Please try again.");
+            }
+          } catch {
+            fire("Failed to send code. Please try again.");
+          } finally {
+            setOtpSending(false);
+          }
         }}>{otpSending ? "Sending code…" : "Continue"}</button>
         <div style={LS.footer}>
           <span style={LS.footerText}>45 NE 26th St, Unit C, Miami, FL 33145</span>
@@ -616,7 +628,13 @@ export default function BirdieGolfWebsite() {
         </div>
         <button style={{ ...S.b1, marginTop: 16, opacity: otp.every(d => d) ? 1 : 0.4 }} onClick={async () => {
           if (!otp.every(d => d)) return;
-          if (otpCode && otp.join("") !== otpCode) { fire("Incorrect code — please try again"); setOtp(["","","","","",""]); otpRefs[0].current?.focus(); return; }
+          const verifyRes = await square("otp.verify", { phone: ph, code: otp.join("") });
+          if (!verifyRes || !verifyRes.approved) {
+            fire("Incorrect code — please try again");
+            setOtp(["","","","","",""]);
+            otpRefs[0].current?.focus();
+            return;
+          }
           // Look up phone in Supabase — skip onboarding if existing customer
           const existing = await sb.get("customers", `phone=eq.${ph}&select=*`);
           if (existing?.length) {
