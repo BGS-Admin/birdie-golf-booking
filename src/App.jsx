@@ -38,7 +38,7 @@ const sb = {
 };
 
 /* ─── Square Integration ─── */
-const SQUARE_APP_ID = "sandbox-sq0idb-B5-swZBCJSc2NwH6nZCw2g";
+const SQUARE_APP_ID = "sq0idp-prGGxuOWteVLYPoXaawqlQ";
 const SQUARE_LOCATION_ID = "LHYS7H99XC8WD";
 const SQUARE_FN_URL = `${SUPABASE_URL}/functions/v1/square-proxy`;
 
