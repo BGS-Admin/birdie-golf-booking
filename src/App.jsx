@@ -685,13 +685,19 @@ export default function BirdieGolfWebsite() {
         </div>
         <button style={{ ...S.b1, marginTop: 16, opacity: otp.every(d => d) ? 1 : 0.4 }} onClick={async () => {
           if (!otp.every(d => d)) return;
-          const verifyRes = await square("otp.verify", { phone: ph, code: otp.join(""), sid: verifySid });
-          console.log("otp.verify response:", JSON.stringify(verifyRes));
-          if (!verifyRes || !verifyRes.approved) {
-            fire("Incorrect code — please try again");
-            setOtp(["","","","","",""]);
-            otpRefs[0].current?.focus();
-            return;
+          // TODO: Remove dev bypass before launch
+          const DEV_PHONE = "5615735560";
+          const DEV_CODE = "000000";
+          const isDev = ph === DEV_PHONE && otp.join("") === DEV_CODE;
+          if (!isDev) {
+            const verifyRes = await square("otp.verify", { phone: ph, code: otp.join(""), sid: verifySid });
+            console.log("otp.verify response:", JSON.stringify(verifyRes));
+            if (!verifyRes || !verifyRes.approved) {
+              fire("Incorrect code — please try again");
+              setOtp(["","","","","",""]);
+              otpRefs[0].current?.focus();
+              return;
+            }
           }
           // Look up phone in Supabase — skip onboarding if existing customer
           const existing = await sb.get("customers", `phone=eq.${ph}&select=*`);
