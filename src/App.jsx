@@ -79,10 +79,10 @@ const X = {
 
 /* ─── Business Constants ─── */
 const TIERS = {
-  starter:      { n: "Starter",      c: "#7AB89A", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate"] },
+  starter:      { n: "Starter",      c: "#C7BCA8", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate"] },
   early_birdie: { n: "Early Birdie", c: "#00305B", badge: "EBD", price: 150, hrs: -1, enrollmentFee: 50, perks: ["Unlimited bay access Mon-Fri 7am-4pm", "Full rate applies outside those hours", "Members-only events"] },
-  player:       { n: "Player",       c: "#2D8A5E", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hrs bay rental/mo", "20% off additional hours", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
-  champion:     { n: "Champion",     c: "#124A2B", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited bay rental (max 2hr/booking)", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
+  player:       { n: "Player",       c: "#072814", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hrs bay rental/mo", "20% off additional hours", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
+  champion:     { n: "Champion",     c: "#000000", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited bay rental (max 2hr/booking)", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
 };
 
 /* Default: coaches available all operating hours. Admin updates override via Supabase. */
@@ -727,7 +727,7 @@ export default function BirdieGolfWebsite() {
 
     if (authStep === "onboard") return authCard(
       <>
-        <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0B2E1A", textAlign: "center", marginBottom: 4 }}>Welcome to Birdie Golf!</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: "#072814", textAlign: "center", marginBottom: 4 }}>Welcome to Birdie Golf!</h2>
         <p style={{ fontSize: 13, color: "#888", textAlign: "center", marginBottom: 20 }}>Let's set up your account</p>
         <div style={LS.nameRow}>
           <div style={{ flex: 1 }}><label style={LS.label}>FIRST NAME</label><input style={LS.onbIn} placeholder="First" value={onbF} onChange={e => setOnbF(e.target.value)} /></div>
@@ -800,7 +800,9 @@ export default function BirdieGolfWebsite() {
     <div style={S.topNav}>
       <div style={S.topNavInner}>
         <div style={S.topNavBrand}>
-          <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, letterSpacing: 2, color: "#0B2E1A" }}>BIRDIE GOLF STUDIOS</span>
+          <span style={{ fontFamily: ff, fontSize: 11, fontWeight: 700, letterSpacing: "2.5px", color: "#fff" }}>
+            BIRDIE <span style={{ color: "#3AE58D" }}>GOLF</span> STUDIOS
+          </span>
         </div>
         <div style={S.topNavLinks}>
           {navItems.map(n => (
@@ -809,7 +811,7 @@ export default function BirdieGolfWebsite() {
             </button>
           ))}
         </div>
-        {tierData && <button style={{ ...S.tierBadge, background: tierData.c }} onClick={() => setTab("membership")}>{tierData.badge}</button>}
+        {tierData && <button style={S.tierBadge} onClick={() => setTab("membership")}>{tierData.badge}</button>}
       </div>
     </div>
   );
@@ -817,11 +819,13 @@ export default function BirdieGolfWebsite() {
   /* ─── BOTTOM NAV (Mobile) ─── */
   const BottomNav = () => (
     <div style={S.nav}>
-      {navItems.map(n => (
-        <button key={n.k} style={{ ...S.navBtn, color: tab === n.k ? "#2D8A5E" : "#aaa" }} onClick={() => handleNav(n.k)}>
-          {n.ic(22)}<span style={{ fontSize: 10, fontWeight: tab === n.k ? 700 : 400 }}>{n.l}</span>
-        </button>
-      ))}
+      <div style={S.navPill}>
+        {navItems.map(n => (
+          <button key={n.k} style={{ ...S.navBtn, ...(tab === n.k ? S.navBtnActive : {}) }} onClick={() => handleNav(n.k)}>
+            <span style={{ color: tab === n.k ? "#3AE58D" : "rgba(255,255,255,0.35)", display: "flex" }}>{n.ic(22)}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 
@@ -850,13 +854,27 @@ export default function BirdieGolfWebsite() {
   /* ─── HOME ─── */
   const renderHome = () => (
     <>
-      <div style={S.greetRow}>
-        <div style={{ flex: 1 }}>
-          <h2 style={S.greetH}>Hey, {onbF} 👋</h2>
-          <p style={S.greetS}>Ready to hit the bays?</p>
+      {!isDesktop && (
+        <div style={{ background: "#072814", margin: "-24px -20px 20px", padding: "22px 20px 26px" }}>
+          <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: "2px", color: "#3AE58D", marginBottom: 7, textTransform: "uppercase" }}>
+            {new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening"}
+          </p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <h2 style={{ fontSize: 26, fontWeight: 700, color: "#fff", lineHeight: 1.15 }}>Hey, {onbF}.</h2>
+            {tierData && <button style={S.tierBadge} onClick={() => setTab("membership")}>{tierData.badge}</button>}
+          </div>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 5 }}>Ready to hit the bays?</p>
         </div>
-        {tierData && !isDesktop && <button style={{ ...S.tierBadge, background: tierData.c }} onClick={() => setTab("membership")}>{tierData.badge}</button>}
-      </div>
+      )}
+      {isDesktop && (
+        <div style={S.greetRow}>
+          <div style={{ flex: 1 }}>
+            <h2 style={S.greetH}>Hey, {onbF}.</h2>
+            <p style={S.greetS}>Ready to hit the bays?</p>
+          </div>
+          {tierData && <button style={S.tierBadge} onClick={() => setTab("membership")}>{tierData.badge}</button>}
+        </div>
+      )}
 
       <div style={{ ...S.qGrid, gridTemplateColumns: isDesktop ? "repeat(4, 1fr)" : "repeat(4, 1fr)" }}>
         {[{ l: "Book Bay", ic: X.cal, t: "book" }, { l: "Lessons", ic: X.coach, t: "lessons" }, { l: "Membership", ic: X.crown, t: "membership" }, { l: "Profile", ic: X.user, t: "profile" }].map(a => (
@@ -874,12 +892,12 @@ export default function BirdieGolfWebsite() {
         </div>
       ) : upcomingBk.map((b, i) => (
         <div key={i} style={S.upCard}>
-          <div style={{ ...S.upIc, color: b.type === "lesson" ? "#5B6DCD" : "#2D8A5E", background: b.type === "lesson" ? "#5B6DCD14" : "#2D8A5E14" }}>
+          <div style={{ ...S.upIc, color: b.type === "lesson" ? "#C7BCA8" : "#3AE58D", background: b.type === "lesson" ? "#00305B" : "#072814" }}>
             {b.type === "lesson" ? X.coach(18) : X.cal(18)}
           </div>
           <div style={{ flex: 1 }}><p style={{ fontSize: 14, fontWeight: 600 }}>{b.label}</p><p style={{ fontSize: 12, color: "#888" }}>{b.sub}</p></div>
           <button
-            style={{ fontSize: 11, fontWeight: 600, color: b.type === "lesson" ? "#5B6DCD" : "#2D8A5E", background: "none", border: `1px solid ${b.type === "lesson" ? "#5B6DCD44" : "#2D8A5E44"}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: ff, flexShrink: 0 }}
+            style={{ fontSize: 11, fontWeight: 600, color: "#072814", background: "none", border: "1px solid rgba(7,40,20,0.25)", borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontFamily: ff, flexShrink: 0 }}
             onClick={() => setManageBk(b)}
           >
             Manage
@@ -892,28 +910,28 @@ export default function BirdieGolfWebsite() {
         <h3 style={S.sh}>My Plans</h3>
         <div style={{ display: "grid", gridTemplateColumns: (tierData && tier !== "none" && totL > 0) ? "1fr 1fr" : "1fr", gap: 12, alignItems: "stretch" }}>
           {tierData && tier !== "none" && (
-            <div style={{ ...S.mc, background: `linear-gradient(135deg, ${tierData.c}, ${tierData.c}cc)`, display: "flex", flexDirection: "column" }}>
+            <div style={{ ...S.mc, background: tierData.c, display: "flex", flexDirection: "column" }}>
               <div>
-                <p style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{tierData.n} Plan</p>
-                <p style={{ fontSize: 12, color: "#ffffffbb", marginTop: 2 }}>${tierData.price}/mo{renewDate ? ` · Renews ${renewDate}` : ""}</p>
-                {pendingTier && TIERS[pendingTier] && <p style={{ fontSize: 11, color: "#ffffffcc", marginTop: 3, fontWeight: 600 }}>⟶ Switching to {TIERS[pendingTier].n} on {renewDate}</p>}
+                <p style={{ fontSize: 15, fontWeight: 700, color: tier === "starter" ? "#072814" : "#fff" }}>{tierData.n} Plan</p>
+                <p style={{ fontSize: 11, color: tier === "starter" ? "rgba(7,40,20,0.55)" : "rgba(255,255,255,0.5)", marginTop: 2 }}>${tierData.price}/mo{renewDate ? ` · Renews ${renewDate}` : ""}</p>
+                {pendingTier && TIERS[pendingTier] && <p style={{ fontSize: 11, color: tier === "starter" ? "rgba(7,40,20,0.7)" : "rgba(255,255,255,0.8)", marginTop: 3, fontWeight: 600 }}>⟶ Switching to {TIERS[pendingTier].n} on {renewDate}</p>}
               </div>
-              <div style={{ marginTop: "auto", paddingTop: 10 }}>
-                {tier === "player" && <p style={{ fontSize: 12, color: "#fff", fontWeight: 600 }}>{bayCredits} out of 8 bay credits remaining</p>}
-                {tier === "early_birdie" && <p style={{ fontSize: 12, color: "#fff", fontWeight: 600 }}>Unlimited credits on weekday non-peak hours</p>}
-                {tier === "champion" && <p style={{ fontSize: 12, color: "#fff", fontWeight: 600 }}>Unlimited credits</p>}
-                {tier === "starter" && <p style={{ fontSize: 12, color: "#fff", fontWeight: 600 }}>Pay-as-you-go</p>}
+              <div style={{ marginTop: "auto", paddingTop: 12 }}>
+                {tier === "player" && <p style={{ fontSize: 11, color: "#3AE58D", fontWeight: 600 }}>{bayCredits} out of 8 bay credits remaining</p>}
+                {tier === "early_birdie" && <p style={{ fontSize: 11, color: "#C7BCA8", fontWeight: 600 }}>Unlimited credits on weekday non-peak hours</p>}
+                {tier === "champion" && <p style={{ fontSize: 11, color: "#3AE58D", fontWeight: 600 }}>Unlimited credits</p>}
+                {tier === "starter" && <p style={{ fontSize: 11, color: "#072814", fontWeight: 600 }}>Pay-as-you-go</p>}
               </div>
             </div>
           )}
           {totL > 0 && creditCoach && (
-            <div style={{ background: "#5B6DCD12", border: "1px solid #5B6DCD33", borderRadius: 18, padding: "22px 20px", display: "flex", flexDirection: "column" }}>
+            <div style={{ background: "rgba(0,48,91,0.08)", border: "0.5px solid rgba(0,48,91,0.2)", borderRadius: 12, padding: "18px", display: "flex", flexDirection: "column" }}>
               <div>
-                <p style={{ fontSize: 16, fontWeight: 700, color: "#1a1a1a" }}>{creditPkg}</p>
-                <p style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{creditCoach.n} · Expires {creditExp}</p>
+                <p style={{ fontSize: 15, fontWeight: 700, color: "#00305B" }}>{creditPkg}</p>
+                <p style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{creditCoach.n} · Expires {creditExp}</p>
               </div>
-              <div style={{ marginTop: "auto", paddingTop: 10 }}>
-                <p style={{ fontSize: 12, color: "#5B6DCD", fontWeight: 600 }}>{totL} out of {maxL} lesson credits remaining</p>
+              <div style={{ marginTop: "auto", paddingTop: 12 }}>
+                <p style={{ fontSize: 11, color: "#00305B", fontWeight: 600 }}>{totL} out of {maxL} lesson credits remaining</p>
               </div>
             </div>
           )}
@@ -926,29 +944,32 @@ export default function BirdieGolfWebsite() {
       <h3 style={{ ...S.sh, marginTop: 24 }}>About Us</h3>
       <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10, marginBottom: 18 }}>
         <div style={{ ...S.aboutCard, gridColumn: isDesktop ? "auto" : "1 / -1" }}>
-          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Bay Rates</p>
-          <p style={{ fontSize: 12, color: "#2D8A5E", lineHeight: 1.8 }}>Non-Peak ${cfg.op}/hr</p>
-          <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 7am–5pm</p><p style={{ fontSize: 10, color: "#888" }}>Sat–Sun 9am–9pm</p>
-          <p style={{ fontSize: 12, color: "#E8890C", lineHeight: 1.8, marginTop: 4 }}>Peak ${cfg.pk}/hr</p>
-          <p style={{ fontSize: 10, color: "#888" }}>Mon–Fri 5pm–10pm</p>
+          <p style={{ fontSize: 10, fontWeight: 700, marginBottom: 6, letterSpacing: "0.5px", color: "#072814", textTransform: "uppercase" }}>Bay Rates</p>
+          <p style={{ fontSize: 11, color: "#555", lineHeight: 1.75 }}><span style={{ color: "#072814", fontWeight: 700 }}>${cfg.op}/hr</span> Non-Peak · Mon–Fri 8am–5pm, Sat–Sun all day</p>
+          <p style={{ fontSize: 11, color: "#555", lineHeight: 1.75, marginTop: 3 }}><span style={{ color: "#84271A", fontWeight: 700 }}>${cfg.pk}/hr</span> Peak · Mon–Fri 5–10pm</p>
         </div>
-        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Hours</p><p style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Mon–Fri 7am–10pm</p><p style={{ fontSize: 12, color: "#555" }}>Sat–Sun 9am–9pm</p></div>
-        <div style={S.aboutCard}><p style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Location</p>
+        <div style={S.aboutCard}>
+          <p style={{ fontSize: 10, fontWeight: 700, marginBottom: 6, letterSpacing: "0.5px", color: "#072814", textTransform: "uppercase" }}>Hours</p>
+          <p style={{ fontSize: 11, color: "#555", lineHeight: 1.75 }}>Mon–Fri 8am–10pm</p>
+          <p style={{ fontSize: 11, color: "#555", lineHeight: 1.75 }}>Sat–Sun 9am–9pm</p>
+        </div>
+        <div style={S.aboutCard}>
+          <p style={{ fontSize: 10, fontWeight: 700, marginBottom: 6, letterSpacing: "0.5px", color: "#072814", textTransform: "uppercase" }}>Location</p>
           <a href="https://maps.apple.com/?q=45+NE+26th+St+Miami+FL+33137" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-            <p style={{ fontSize: 12, color: "#2D8A5E", lineHeight: 1.6 }}>45 NE 26th St., Unit C</p>
-            <p style={{ fontSize: 12, color: "#2D8A5E" }}>Miami, FL 33137</p>
+            <p style={{ fontSize: 11, color: "#555", lineHeight: 1.75 }}>45 NE 26th St., Unit C</p>
+            <p style={{ fontSize: 11, color: "#555", lineHeight: 1.75 }}>Miami, FL 33137</p>
           </a>
         </div>
       </div>
 
       <h3 style={S.sh}>Contact</h3>
-      <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
-        <a href="mailto:info@birdiegolfstudios.com" style={S.contactBtn}>{X.mail(16)} Email Us</a>
-        <a href="tel:+13054564149" style={S.contactBtn}>{X.phone(16)} Call Us</a>
-        <a href="https://wa.me/13055421222" target="_blank" rel="noopener noreferrer" style={{ ...S.contactBtn, color: "#25D366" }}>{X.whatsapp(16)} WhatsApp</a>
+      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+        <a href="https://wa.me/13055421222" target="_blank" rel="noopener noreferrer" style={S.contactBtn}>{X.whatsapp(16)} WhatsApp</a>
+        <a href="mailto:info@birdiegolfstudios.com" style={S.contactBtn}>{X.mail(16)} Email</a>
+        <a href="tel:+13054564149" style={S.contactBtn}>{X.phone(16)} Call</a>
       </div>
 
-      <button style={{ ...S.b1, background: "#f0f0ee", color: "#888", marginBottom: 40 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOtpCode(""); setVerifySid(""); setOnbF(""); setOnbL(""); setOnbE(""); }}>
+      <button style={{ width: "100%", padding: "12px 18px", background: "none", border: "0.5px solid #e0ddd6", borderRadius: 10, fontSize: 12, fontWeight: 600, color: "#bbb", cursor: "pointer", fontFamily: ff, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 40 }} onClick={() => { setLogged(false); setAuthStep("phone"); setPh(""); setOtp(["","","","","",""]); setOtpCode(""); setVerifySid(""); setOnbF(""); setOnbL(""); setOnbE(""); }}>
         {X.out(16)} Sign Out
       </button>
     </>
@@ -1007,7 +1028,7 @@ export default function BirdieGolfWebsite() {
           <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, marginBottom: 12 }}>
             Your Player credits reset on renewal day, so we can't apply your current credits to this booking — it will be charged at the <strong>full hourly rate</strong>. If you cancel after the renewal date, you won't be eligible for a credit refund.
           </p>
-          <p style={{ fontSize: 13, color: "#2D8A5E", fontWeight: 600, lineHeight: 1.6 }}>
+          <p style={{ fontSize: 13, color: "#072814", fontWeight: 600, lineHeight: 1.6 }}>
             💡 We recommend waiting until after <strong>{renewDate}</strong> to make this booking so your fresh credits apply automatically.
           </p>
         </div>
@@ -1033,8 +1054,8 @@ export default function BirdieGolfWebsite() {
           <div>
             <div style={S.confCard}>
               {[["Date", fmtDateLong(bkDate)], ["Duration", durHrs + " hr" + (durHrs > 1 ? "s" : "")], ["Time", bkTime], ["Bay", "Bay " + bkBay]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
-              {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{eTier === "early_birdie" ? "Free Window" : "Credits Used"}</span><span style={{ ...S.confV, color: eTier === "early_birdie" ? "#4A8B6E" : "#2D8A5E" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
-              {price.disc > 0 && <div style={S.confRow}><span style={S.confL}>Member Discount</span><span style={{ ...S.confV, color: "#2D8A5E" }}>-${price.disc.toFixed(2)}</span></div>}
+              {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{eTier === "early_birdie" ? "Free Window" : "Credits Used"}</span><span style={{ ...S.confV, color: eTier === "early_birdie" ? "#072814" : "#072814" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
+              {price.disc > 0 && <div style={S.confRow}><span style={S.confL}>Member Discount</span><span style={{ ...S.confV, color: "#072814" }}>-${price.disc.toFixed(2)}</span></div>}
               {price.tax > 0 && <div style={S.confRow}><span style={S.confL}>Tax (7%)</span><span style={S.confV}>${price.tax.toFixed(2)}</span></div>}
               {eTier !== tier && <div style={{ background: "#FFF5E5", border: "1px solid #E8890C33", borderRadius: 8, padding: "8px 12px", marginBottom: 8 }}>
                 <p style={{ fontSize: 11, color: "#E8890C", fontWeight: 600 }}>Priced as {TIERS[eTier]?.n} — your new plan starting {renewDate}</p>
@@ -1048,7 +1069,7 @@ export default function BirdieGolfWebsite() {
             <div style={S.polBox}>
               <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Cancellation Policy</p>
               <p style={{ fontSize: 12, color: "#8B6914", lineHeight: 1.5, marginBottom: 12 }}>Cancellations within 24 hours are non-refundable.</p>
-              <label style={S.chkRow}><input type="checkbox" checked={bkAgree} onChange={() => setBkAgree(!bkAgree)} style={{ marginRight: 8, accentColor: "#2D8A5E" }} /><span style={{ fontSize: 12 }}>I agree to the cancellation policy</span></label>
+              <label style={S.chkRow}><input type="checkbox" checked={bkAgree} onChange={() => setBkAgree(!bkAgree)} style={{ marginRight: 8, accentColor: "#072814" }} /><span style={{ fontSize: 12 }}>I agree to the cancellation policy</span></label>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
               <button style={S.b2} onClick={() => setBkStep(0)}>Back</button>
@@ -1074,15 +1095,15 @@ export default function BirdieGolfWebsite() {
         <button style={{ ...S.b1, background: "#E03928", maxWidth: 180, fontSize: 13, padding: "10px 14px" }} onClick={() => setTab("profile")}>Add Card</button>
       </div>}
       {tier === "champion" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#124A2B" }}>Unlimited · Max 2hrs/booking</span></div>}
-      {tier === "early_birdie" && <div style={{ ...S.creditBanner, borderColor: "#4A8B6E33", background: "#4A8B6E08" }}><span style={{ fontSize: 13, fontWeight: 600, color: "#4A8B6E" }}>Unlimited Mon-Fri 7am-4pm · Full rate outside window</span></div>}
-      {tier === "player" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#2D8A5E" }}>{bayCredits > 0 ? bayCredits + " hrs of credits remaining this cycle" : "No bay credits remaining this cycle"}</span></div>}
+      {tier === "early_birdie" && <div style={{ ...S.creditBanner, borderColor: "rgba(7,40,20,0.2)", background: "rgba(7,40,20,0.03)" }}><span style={{ fontSize: 13, fontWeight: 600, color: "#072814" }}>Unlimited Mon-Fri 7am-4pm · Full rate outside window</span></div>}
+      {tier === "player" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#072814" }}>{bayCredits > 0 ? bayCredits + " hrs of credits remaining this cycle" : "No bay credits remaining this cycle"}</span></div>}
 
       {hasCard && <><h4 style={S.stepH}>Select Date</h4>
       <div style={S.dateScroll}>
         {days14.map(d => {
           const sel = bkDate && dateKey(bkDate) === dateKey(d);
           const isToday = dateKey(d) === dateKey(new Date());
-          return <button key={dateKey(d)} style={{ ...S.dateBtn, ...(sel ? S.dateSel : {}), ...(isToday && !sel ? { borderColor: "#2D8A5E" } : {}) }}
+          return <button key={dateKey(d)} style={{ ...S.dateBtn, ...(sel ? S.dateSel : {}), ...(isToday && !sel ? { borderColor: "#072814" } : {}) }}
             onClick={() => { setBkDate(d); setBkDur(null); setBkTime(null); setBkBay(null); }}>
             <span style={{ fontSize: 11, color: sel ? "#fff" : "#888" }}>{dayName(d)}</span>
             <span style={{ fontSize: 18, fontWeight: 700, color: sel ? "#fff" : "#1a1a1a" }}>{d.getDate()}</span>
@@ -1133,13 +1154,13 @@ export default function BirdieGolfWebsite() {
         return <div style={{ ...S.pricePreview, ...(pvWarn === "past_renewal_player" ? { borderColor: "#E8890C44", background: "#FFF5E508" } : {}) }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Total</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: pvWarn === "past_renewal_player" ? "#E8890C" : "#2D8A5E" }}>${price.total.toFixed(2)}</span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: pvWarn === "past_renewal_player" ? "#E8890C" : "#072814" }}>${price.total.toFixed(2)}</span>
           </div>
           {pvWarn === "past_renewal_player" && <p style={{ fontSize: 11, color: "#E8890C", marginTop: 4, fontWeight: 600 }}>⚠ Full rate — booking past your {renewDate} renewal</p>}
-          {price.credits > 0 && <p style={{ fontSize: 11, color: "#2D8A5E", marginTop: 4 }}>{price.credits} hr credit{price.credits > 1 ? "s" : ""} applied</p>}
-          {pvTier === "early_birdie" && price.credits > 0 && <p style={{ fontSize: 11, color: "#4A8B6E", marginTop: 2 }}>Free window: {price.credits}hr covered</p>}
+          {price.credits > 0 && <p style={{ fontSize: 11, color: "#072814", marginTop: 4 }}>{price.credits} hr credit{price.credits > 1 ? "s" : ""} applied</p>}
+          {pvTier === "early_birdie" && price.credits > 0 && <p style={{ fontSize: 11, color: "#072814", marginTop: 2 }}>Free window: {price.credits}hr covered</p>}
           {pvWarn === "switch" && pvTier !== tier && <p style={{ fontSize: 11, color: "#E8890C", marginTop: 4 }}>Priced as {TIERS[pvTier]?.n} — new plan from {renewDate}</p>}
-          {price.disc > 0 && <p style={{ fontSize: 11, color: "#2D8A5E", marginTop: 2 }}>Member discount: -${price.disc.toFixed(2)}</p>}
+          {price.disc > 0 && <p style={{ fontSize: 11, color: "#072814", marginTop: 2 }}>Member discount: -${price.disc.toFixed(2)}</p>}
           {price.tax > 0 && <p style={{ fontSize: 11, color: "#888", marginTop: 2 }}>Includes ${price.tax.toFixed(2)} tax (7%)</p>}
         </div>;
       })()}
@@ -1168,7 +1189,7 @@ export default function BirdieGolfWebsite() {
             <div style={S.confCard}>
               {[["Coach", coach?.n], ["Date", fmtDateLong(lesDate)], ["Time", lesTime + " · 1 hr"], ["Bay", "Bay " + bayAssigned]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
               <div style={S.confDiv} />
-              <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700, color: lp.credit ? "#2D8A5E" : "#1a1a1a" }}>{lp.label}</span></div>
+              <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700, color: lp.credit ? "#072814" : "#1a1a1a" }}>{lp.label}</span></div>
             </div>
             {wrongCoach && <div style={{ ...S.polBox, background: "#FFF0F0", borderColor: "#E0392822" }}><p style={{ fontSize: 12, color: "#E03928", lineHeight: 1.5 }}>Credits only valid with {creditCoach?.n}. Full rate applies.</p></div>}
           </div>
@@ -1179,11 +1200,11 @@ export default function BirdieGolfWebsite() {
                 <p style={{ marginBottom: 6 }}><strong>Within 24 hours or no-show:</strong> No refund. You will be charged the bay rental cost for that hour (${slotRate(lesDate, lesTime, cfg).toFixed(2)}).</p>
                 <p><strong>More than 24 hours in advance:</strong> Full refund — lesson credits returned to your account, or refund to your credit card on file.</p>
               </div>
-              <label style={S.chkRow}><input type="checkbox" checked={lesAgree} onChange={() => setLesAgree(!lesAgree)} style={{ marginRight: 8, accentColor: "#5B6DCD" }} /><span style={{ fontSize: 12 }}>I have read and agree to the cancellation policy</span></label>
+              <label style={S.chkRow}><input type="checkbox" checked={lesAgree} onChange={() => setLesAgree(!lesAgree)} style={{ marginRight: 8, accentColor: "#00305B" }} /><span style={{ fontSize: 12 }}>I have read and agree to the cancellation policy</span></label>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
               <button style={S.b2} onClick={() => setLesStep(0)}>Back</button>
-              <button style={{ ...S.b1, flex: 2, background: "#5B6DCD", opacity: lesAgree ? 1 : 0.4 }} onClick={async () => {
+              <button style={{ ...S.b1, flex: 2, background: "#00305B", opacity: lesAgree ? 1 : 0.4 }} onClick={async () => {
                 if (!lesAgree) return;
                 await saveLessonBooking({ bay: bayAssigned, date: lesDate, time: lesTime, coachId: lesCoach, coachName: coach?.n, total: lp.total, credit: lp.credit });
                 setUpcomingBk(p => [...p, { type: "lesson", label: "Lesson · " + coach?.n, sub: fmtDate(lesDate) + " · " + lesTime + " · 1hr" }]);
@@ -1200,14 +1221,14 @@ export default function BirdieGolfWebsite() {
     }
 
     const CoachCard = ({ c, sel, locked, onClick }) => (
-      <button style={{ ...S.coachCard, ...(sel ? { borderColor: "#5B6DCD", background: "#5B6DCD0A" } : {}), ...(locked ? { opacity: 0.4, cursor: "not-allowed" } : {}) }} onClick={onClick} disabled={locked}>
+      <button style={{ ...S.coachCard, ...(sel ? { borderColor: "#00305B", background: "#00305B0A" } : {}), ...(locked ? { opacity: 0.4, cursor: "not-allowed" } : {}) }} onClick={onClick} disabled={locked}>
         <div style={S.coachAv}>{c.ini}</div>
         <div><p style={{ fontSize: 13, fontWeight: 600 }}>{c.n}</p>
           {locked && <p style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>Credits with {creditCoach?.n.split(" ")[0]}</p>}</div>
       </button>
     );
 
-    const DateBtn = ({ d, sel, disabled: dis, color = "#5B6DCD" }) => (
+    const DateBtn = ({ d, sel, disabled: dis, color = "#00305B" }) => (
       <button style={{ ...S.dateBtn, ...(sel ? { ...S.dateSel, background: color } : {}), ...(dateKey(d) === dateKey(new Date()) && !sel ? { borderColor: color } : {}), ...(dis ? { opacity: 0.35 } : {}) }}
         onClick={() => { if (!dis) { setLesDate(d); setLesTime(null); if (lesMode === "date") setLesCoach(null); } }} disabled={dis}>
         <span style={{ fontSize: 11, color: sel ? "#fff" : "#888" }}>{dayName(d)}</span>
@@ -1228,8 +1249,8 @@ export default function BirdieGolfWebsite() {
       </div>}
 
       {hasCard && lesTab === "book" && <>
-        {totL > 0 && <div style={{ ...S.creditBanner, background: "#5B6DCD12", borderColor: "#5B6DCD33" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ background: "#5B6DCD", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totL}</span><span style={{ fontSize: 13, fontWeight: 600, color: "#5B6DCD" }}>Lesson Credits Available</span></div>
+        {totL > 0 && <div style={{ ...S.creditBanner, background: "rgba(0,48,91,0.07)", borderColor: "rgba(0,48,91,0.2)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ background: "#00305B", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totL}</span><span style={{ fontSize: 13, fontWeight: 600, color: "#00305B" }}>Lesson Credits Available</span></div>
           <p style={{ fontSize: 11, color: "#888", marginTop: 4 }}>{creditPkg} · {creditCoach?.n}</p>
         </div>}
         <div style={S.modeToggle}>
@@ -1241,7 +1262,7 @@ export default function BirdieGolfWebsite() {
           <h4 style={S.stepH}>Select Date</h4>
           <div style={S.dateScroll}>{days14.map(d => { const dn = dayName(d); const hasCoach = COACHES.some(c => (c.av[dn] || []).length > 0); return <DateBtn key={dateKey(d)} d={d} sel={lesDate && dateKey(lesDate) === dateKey(d)} disabled={!hasCoach} />; })}</div>
           {lesDate && <><h4 style={S.stepH}>Select Start Time</h4><div style={{ ...S.timeGrid, gridTemplateColumns: isDesktop ? "repeat(6,1fr)" : "repeat(4,1fr)" }}>
-            {getLessonTimes(lesDate, null, bayBlocks, allBookings, hoursConfig).map(t => { const sel = lesTime === t; return <button key={t} style={{ ...S.timeBtn, ...(sel ? { ...S.timeSel, background: "#5B6DCD", borderColor: "#5B6DCD" } : { borderColor: "#5B6DCD44" }) }} onClick={() => { setLesTime(t); setLesCoach(null); }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : "#1a1a1a" }}>{t}</span></button>; })}
+            {getLessonTimes(lesDate, null, bayBlocks, allBookings, hoursConfig).map(t => { const sel = lesTime === t; return <button key={t} style={{ ...S.timeBtn, ...(sel ? { ...S.timeSel, background: "#00305B", borderColor: "#00305B" } : { borderColor: "rgba(0,48,91,0.25)" }) }} onClick={() => { setLesTime(t); setLesCoach(null); }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : "#1a1a1a" }}>{t}</span></button>; })}
           </div></>}
           {lesDate && lesTime && <><h4 style={S.stepH}>Select Instructor</h4><div style={{ display: "flex", gap: 10 }}>
             {getCoachesAt(lesDate, lesTime, bayBlocks, allBookings).map(c => <CoachCard key={c.id} c={c} sel={lesCoach === c.id} locked={totL > 0 && c.id !== creditCoachId} onClick={() => { if (!(totL > 0 && c.id !== creditCoachId)) setLesCoach(c.id); }} />)}
@@ -1251,17 +1272,17 @@ export default function BirdieGolfWebsite() {
           <div style={{ display: "flex", gap: 10 }}>{COACHES.map(c => <CoachCard key={c.id} c={c} sel={lesCoach === c.id} locked={totL > 0 && c.id !== creditCoachId} onClick={() => { if (!(totL > 0 && c.id !== creditCoachId)) { setLesCoach(c.id); setLesDate(null); setLesTime(null); } }} />)}</div>
           {lesCoach && <><h4 style={S.stepH}>Select Date</h4><div style={S.dateScroll}>{days14.map(d => { const coach = COACHES.find(c => c.id === lesCoach); const hasSlots = (coach?.av[dayName(d)] || []).length > 0; return <DateBtn key={dateKey(d)} d={d} sel={lesDate && dateKey(lesDate) === dateKey(d)} disabled={!hasSlots} />; })}</div></>}
           {lesCoach && lesDate && <><h4 style={S.stepH}>Select Start Time</h4><div style={{ ...S.timeGrid, gridTemplateColumns: isDesktop ? "repeat(6,1fr)" : "repeat(4,1fr)" }}>
-            {getLessonTimes(lesDate, COACHES.find(c => c.id === lesCoach), bayBlocks, allBookings, hoursConfig).map(t => { const sel = lesTime === t; return <button key={t} style={{ ...S.timeBtn, ...(sel ? { ...S.timeSel, background: "#5B6DCD", borderColor: "#5B6DCD" } : { borderColor: "#5B6DCD44" }) }} onClick={() => setLesTime(t)}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : "#1a1a1a" }}>{t}</span></button>; })}
+            {getLessonTimes(lesDate, COACHES.find(c => c.id === lesCoach), bayBlocks, allBookings, hoursConfig).map(t => { const sel = lesTime === t; return <button key={t} style={{ ...S.timeBtn, ...(sel ? { ...S.timeSel, background: "#00305B", borderColor: "#00305B" } : { borderColor: "rgba(0,48,91,0.25)" }) }} onClick={() => setLesTime(t)}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? "#fff" : "#1a1a1a" }}>{t}</span></button>; })}
           </div></>}
         </>}
 
         {lesDate && lesTime && lesCoach && (() => {
           const coach = COACHES.find(c => c.id === lesCoach), lp = lessonPrice(tier, totL > 0, creditCoachId, lesCoach);
-          return <div style={{ ...S.pricePreview, borderColor: "#5B6DCD33", background: "#5B6DCD08", marginTop: 16 }}>
+          return <div style={{ ...S.pricePreview, borderColor: "rgba(0,48,91,0.2)", background: "#00305B08", marginTop: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><p style={{ fontSize: 13, fontWeight: 600 }}>{coach?.n} · 1 hr</p><p style={{ fontSize: 11, color: "#888" }}>Bay {autoAssignBay(lesDate, lesTime, bayBlocks, allBookings, hoursConfig)}</p></div>
-            <span style={{ fontSize: 16, fontWeight: 700, color: lp.credit ? "#2D8A5E" : "#5B6DCD" }}>{lp.label}</span></div></div>;
+            <span style={{ fontSize: 16, fontWeight: 700, color: lp.credit ? "#072814" : "#00305B" }}>{lp.label}</span></div></div>;
         })()}
-        {lesDate && lesTime && lesCoach && <button style={{ ...S.b1, marginTop: 12, background: "#5B6DCD" }} onClick={() => {
+        {lesDate && lesTime && lesCoach && <button style={{ ...S.b1, marginTop: 12, background: "#00305B" }} onClick={() => {
           const now = new Date();
           const isToday = lesDate && isSameLocalDay(lesDate, now);
           const currentH = now.getHours() + now.getMinutes() / 60;
@@ -1273,11 +1294,11 @@ export default function BirdieGolfWebsite() {
       {hasCard && lesTab === "packages" && <>
         {totL > 0 ? <>
           <div style={S.creditDetailCard}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><p style={{ fontSize: 15, fontWeight: 700 }}>{creditPkg}</p><span style={{ background: "#5B6DCD", color: "#fff", fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 10 }}>{totL}/{maxL}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><p style={{ fontSize: 15, fontWeight: 700 }}>{creditPkg}</p><span style={{ background: "#00305B", color: "#fff", fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 10 }}>{totL}/{maxL}</span></div>
             <p style={{ fontSize: 12, color: "#888" }}>{creditCoach?.n}</p>
-            <p style={{ fontSize: 13, color: "#5B6DCD", fontWeight: 600, marginTop: 8 }}>{totL} out of {maxL} lesson credits remaining</p>
+            <p style={{ fontSize: 13, color: "#00305B", fontWeight: 600, marginTop: 8 }}>{totL} out of {maxL} lesson credits remaining</p>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 11, color: "#888" }}><span>Purchased {creditPurchaseDate}</span><span>Expires {creditExp}</span></div>
-            <button style={{ ...S.b1, background: "#5B6DCD", marginTop: 14 }} onClick={() => { setLesTab("book"); setLesCoach(creditCoachId); setLesMode("instructor"); }}>Book with Credits</button>
+            <button style={{ ...S.b1, background: "#00305B", marginTop: 14 }} onClick={() => { setLesTab("book"); setLesCoach(creditCoachId); setLesMode("instructor"); }}>Book with Credits</button>
           </div>
           {creditUsage.length > 0 && <><h4 style={{ ...S.stepH, marginTop: 20 }}>Credit Usage</h4>
             {creditUsage.map((u, i) => <div key={i} style={S.histRow}><div style={{ flex: 1 }}><p style={{ fontSize: 13, fontWeight: 500 }}>{u.desc}</p><p style={{ fontSize: 11, color: "#888" }}>{u.date}</p></div><span style={{ fontSize: 12, fontWeight: 700, color: "#E03928" }}>-1</span></div>)}</>}
@@ -1294,7 +1315,7 @@ export default function BirdieGolfWebsite() {
           </> : (() => { const coach = COACHES.find(c => c.id === pkgCoach); return <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><button style={S.bk} onClick={() => setPkgCoach(null)}>{X.chevL(18)}</button><div><p style={{ fontSize: 15, fontWeight: 700 }}>{selPkg.name}</p><p style={{ fontSize: 12, color: "#888" }}>{selPkg.credits} credits · {coach?.n}</p></div></div>
             <div style={S.confCard}>{[["Package", selPkg.name], ["Credits", selPkg.credits + " lessons"], ["Instructor", coach?.n]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}<div style={S.confDiv} /><div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700 }}>${selPkg.price}</span></div></div>
-            <button style={{ ...S.b1, background: "#5B6DCD", marginTop: 14 }} onClick={async () => {
+            <button style={{ ...S.b1, background: "#00305B", marginTop: 14 }} onClick={async () => {
               const today = new Date(), expDate = new Date(today); expDate.setMonth(expDate.getMonth() + 3);
               const fmtShort = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
               const existingPkg = await sb.get("lesson_packages", `customer_id=eq.${customerId}&status=eq.active&select=id`);
@@ -1355,7 +1376,7 @@ export default function BirdieGolfWebsite() {
           <div style={S.detailCard}><h4 style={S.detailH}>Plan Details</h4>
             {[["Plan", td.n], ["Monthly Rate", "$" + td.price], ["Member Since", memberSince], ["Next Renewal", renewDate], ["Bay Hours", tier === "champion" ? "Unlimited (max 2hr/booking)" : tier === "early_birdie" ? "Unlimited Mon-Fri 7am-4pm" : bayCredits + " of 8 remaining"]].map(([l, v]) => <div key={l} style={S.detailRow}><span style={S.detailL}>{l}</span><span style={S.detailV}>{v}</span></div>)}</div>
           <div style={S.detailCard}><h4 style={S.detailH}>Perks</h4>
-            {td.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}><span style={{ color: "#2D8A5E" }}>{X.chk(16)}</span><span style={{ fontSize: 13 }}>{p}</span></div>)}</div>
+            {td.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}><span style={{ color: "#072814" }}>{X.chk(16)}</span><span style={{ fontSize: 13 }}>{p}</span></div>)}</div>
         </div>
         <div style={S.detailCard}><h4 style={S.detailH}>Cancellation Policy</h4>
           <p style={{ fontSize: 12, color: "#555", lineHeight: 1.6, marginBottom: 12 }}>Next renewal: {renewDate}. Cancelling more than 7 days before renewal — access continues through {renewDate}. Cancelling within 7 days — one final charge applies on {renewDate}, with access through the following cycle.</p>
@@ -1369,7 +1390,7 @@ export default function BirdieGolfWebsite() {
           <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>${t.price}<span style={{ fontSize: 13, color: "#888", fontWeight: 400 }}>/mo</span></p>
           {t.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}><span style={{ color: t.c, flexShrink: 0 }}>{X.chk(14)}</span><span style={{ fontSize: 12 }}>{p}</span></div>)}
           {t.enrollmentFee && enrollmentFeeEnabled && <p style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>One-time ${t.enrollmentFee} enrollment fee at sign-up.</p>}
-          {k === "early_birdie" && <p style={{ fontSize: 11, fontWeight: 700, color: "#4A8B6E", marginTop: 4 }}>Mon-Fri 7am-4pm only</p>}
+          {k === "early_birdie" && <p style={{ fontSize: 11, fontWeight: 700, color: "#072814", marginTop: 4 }}>Mon-Fri 7am-4pm only</p>}
           <div style={{ marginTop: 14 }}>
             {k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span>
             : k === pendingTier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Scheduled on {renewDate}</span>
@@ -1408,8 +1429,8 @@ export default function BirdieGolfWebsite() {
               <span style={{ fontSize: 14, fontWeight: 700, color: t?.c }}>${total.toFixed(2)}</span>
             </div>
           </div>
-          {memModal.to === "early_birdie" && <div style={{ background: "#F0F7F4", border: "1px solid #4A8B6E33", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#4A8B6E", marginBottom: 4 }}>Time Restriction</p>
+          {memModal.to === "early_birdie" && <div style={{ background: "rgba(7,40,20,0.04)", border: "1px solid #4A8B6E33", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#072814", marginBottom: 4 }}>Time Restriction</p>
             <p style={{ fontSize: 12, color: "#555", lineHeight: 1.5 }}>Early Birdie credits apply Mon-Fri 7am-4pm only. Bookings outside that window are charged at the full hourly rate + tax.</p>
           </div>}
           <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}. Renews monthly at ${t?.price}/mo + tax.</p>
@@ -1554,7 +1575,7 @@ export default function BirdieGolfWebsite() {
 
     <div style={S.sec}><h4 style={S.secL}>Transaction History</h4>
       {transactions.length === 0 ? <p style={{ fontSize: 13, color: "#aaa", textAlign: "center", padding: "12px 0" }}>No transactions yet</p> : <>
-      {(showAllTxn ? transactions : transactions.slice(0, 5)).map((t, i) => <div key={i} style={S.fRow}><div style={{ flex: 1 }}><p style={{ fontSize: 13, fontWeight: 500 }}>{t.desc}</p><p style={{ fontSize: 11, color: "#888" }}>{t.date} · {t.method}</p></div><span style={{ fontSize: 13, fontWeight: 600, color: t.amt === "$0.00" ? "#2D8A5E" : "#1a1a1a" }}>{t.amt}</span></div>)}
+      {(showAllTxn ? transactions : transactions.slice(0, 5)).map((t, i) => <div key={i} style={S.fRow}><div style={{ flex: 1 }}><p style={{ fontSize: 13, fontWeight: 500 }}>{t.desc}</p><p style={{ fontSize: 11, color: "#888" }}>{t.date} · {t.method}</p></div><span style={{ fontSize: 13, fontWeight: 600, color: t.amt === "$0.00" ? "#072814" : "#1a1a1a" }}>{t.amt}</span></div>)}
       {transactions.length > 5 && <button style={{ ...S.lk, width: "100%", textAlign: "center", padding: "10px 0", fontSize: 13 }} onClick={() => setShowAllTxn(p => !p)}>{showAllTxn ? "Show less" : "Show all " + transactions.length + " transactions"}</button>}
       </>}
       <p style={{ fontSize: 10, color: "#ccc", textAlign: "center", marginTop: 14 }}>Powered by Square</p></div>
@@ -1802,7 +1823,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
     onRefresh();
   };
 
-  const GREEN="#2D8A5E", RED="#E03928", ORANGE="#4A8B6E", PURPLE="#5B6DCD";
+  const GREEN="#072814", RED="#E03928", ORANGE="#072814", PURPLE="#00305B";
   const accentColor = isLesson ? PURPLE : GREEN;
   const ov  = { position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20 };
   const mod = { background:"#fff",borderRadius:20,padding:24,maxWidth:420,width:"100%",maxHeight:"85vh",overflowY:"auto" };
@@ -1872,17 +1893,17 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
 const CSS = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}html,body,#root{height:100%;overflow:hidden}::-webkit-scrollbar{width:3px;height:3px}::-webkit-scrollbar-thumb{background:#ddd;border-radius:4px}input:focus,button:focus{outline:none}@keyframes ti{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}button:active{transform:scale(0.97)}`;
 
 const LS = {
-  w: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(155deg,#0B2E1A,#1A5C3A 45%,#2D8A5E)", fontFamily: ff, padding: 20 },
+  w: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(155deg,#072814,#0a3520 45%,#0f4a25)", fontFamily: ff, padding: 20 },
   c: { background: "#fff", borderRadius: 22, padding: "36px 28px", width: "100%", maxWidth: 420, boxShadow: "0 28px 80px rgba(0,0,0,0.28)" },
   br: { textAlign: "center", marginBottom: 24 },
-  bn: { fontFamily: mono, fontSize: 18, fontWeight: 700, color: "#0B2E1A", letterSpacing: 3 },
+  bn: { fontFamily: mono, fontSize: 18, fontWeight: 700, color: "#072814", letterSpacing: 3 },
   bs: { fontFamily: ff, fontSize: 12, color: "#888", letterSpacing: 0.5, marginTop: 4 },
   label: { fontSize: 11, fontWeight: 700, color: "#888", letterSpacing: 1, marginBottom: 6, display: "block" },
   phRow: { display: "flex", alignItems: "center", gap: 8, background: "#f8f8f6", borderRadius: 12, padding: "0 14px", border: "1px solid #e8e8e6" },
   phPre: { fontSize: 14, fontWeight: 600, color: "#555", flexShrink: 0 },
   phIn: { flex: 1, border: "none", background: "transparent", padding: "14px 0", fontSize: 16, fontFamily: ff, color: "#1a1a1a" },
 
-  tagline: { fontSize: 16, fontWeight: 600, color: "#0B2E1A", textAlign: "center", marginBottom: 10 },
+  tagline: { fontSize: 16, fontWeight: 600, color: "#072814", textAlign: "center", marginBottom: 10 },
   features: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexWrap: "wrap", marginBottom: 20 },
   feat: { fontSize: 11, color: "#555", whiteSpace: "nowrap" },
   featDot: { fontSize: 11, color: "#ccc" },
@@ -1899,136 +1920,138 @@ const LS = {
 const S = {
   shell: { fontFamily: ff, position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: "#FAFAF8", overflow: "hidden" },
   scroll: { flex: 1, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch" },
-  page: { maxWidth: 680, margin: "0 auto", padding: "24px 20px 80px", width: "100%" },
+  page: { maxWidth: 680, margin: "0 auto", padding: "24px 20px 100px", width: "100%" },
 
   /* Top nav (desktop/tablet) */
-  topNav: { background: "#fff", borderBottom: "1px solid #e8e8e6", position: "sticky", top: 0, zIndex: 100 },
+  topNav: { background: "#072814", borderBottom: "none", position: "sticky", top: 0, zIndex: 100 },
   topNavInner: { maxWidth: 1080, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", height: 60 },
   topNavBrand: { flexShrink: 0 },
   topNavLinks: { display: "flex", gap: 4 },
-  topNavBtn: { display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", border: "none", background: "transparent", borderRadius: 10, fontSize: 13, fontWeight: 500, color: "#888", cursor: "pointer", fontFamily: ff },
-  topNavBtnActive: { background: "#2D8A5E0E", color: "#2D8A5E", fontWeight: 600 },
-  tierBadge: { fontSize: 11, fontWeight: 700, color: "#fff", padding: "6px 12px", borderRadius: 8, fontFamily: mono, letterSpacing: 1, border: "none", cursor: "pointer", flexShrink: 0 },
+  topNavBtn: { display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", border: "none", background: "transparent", borderRadius: 10, fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.5)", cursor: "pointer", fontFamily: ff },
+  topNavBtnActive: { background: "rgba(58,229,141,0.15)", color: "#3AE58D", fontWeight: 600 },
+  tierBadge: { fontSize: 9, fontWeight: 700, color: "#072814", padding: "4px 9px", borderRadius: 5, fontFamily: ff, letterSpacing: 1, border: "none", cursor: "pointer", flexShrink: 0, background: "#3AE58D" },
 
-  /* Bottom nav (mobile) */
-  nav: { display: "flex", borderTop: "1px solid #e8e8e6", background: "#fff", paddingBottom: "env(safe-area-inset-bottom, 8px)", flexShrink: 0 },
-  navBtn: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, padding: "10px 0 8px", border: "none", background: "none", cursor: "pointer", fontFamily: ff },
+  /* Bottom nav (mobile) — floating dark pill */
+  nav: { padding: "10px 14px", paddingBottom: "calc(10px + env(safe-area-inset-bottom, 8px))", background: "#FAFAF8", flexShrink: 0 },
+  navPill: { background: "#072814", borderRadius: 12, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 4px 20px rgba(7,40,20,0.22)" },
+  navBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "7px 0", border: "none", background: "none", cursor: "pointer", fontFamily: ff, borderRadius: 8 },
+  navBtnActive: { background: "rgba(58,229,141,0.15)" },
 
   /* Buttons */
-  b1: { background: "#2D8A5E", color: "#fff", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, fontFamily: ff, cursor: "pointer", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 },
+  b1: { background: "#072814", color: "#fff", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, fontFamily: ff, cursor: "pointer", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 },
   b2: { background: "#f0f0ee", color: "#1a1a1a", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, fontFamily: ff, cursor: "pointer", flex: 1, textAlign: "center" },
-  lk: { background: "none", border: "none", color: "#2D8A5E", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: ff },
+  lk: { background: "none", border: "none", color: "#072814", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: ff },
 
   /* Header / Back */
   hd: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20 },
   bk: { width: 36, height: 36, borderRadius: 10, background: "#f0f0ee", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, color: "#1a1a1a" },
-  ht: { fontSize: 18, fontWeight: 700, color: "#0B2E1A" },
+  ht: { fontSize: 18, fontWeight: 700, color: "#072814" },
 
   /* Greeting */
   greetRow: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20 },
-  greetH: { fontSize: 22, fontWeight: 700, color: "#0B2E1A" },
+  greetH: { fontSize: 22, fontWeight: 700, color: "#072814" },
   greetS: { fontSize: 13, color: "#888", marginTop: 2 },
 
   /* Quick actions */
-  qGrid: { display: "grid", gap: 10, marginBottom: 24 },
-  qBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 4px", background: "#fff", border: "1px solid #e8e8e6", borderRadius: 14, cursor: "pointer", fontFamily: ff },
-  qIc: { width: 40, height: 40, borderRadius: 10, background: "#2D8A5E10", color: "#2D8A5E", display: "flex", alignItems: "center", justifyContent: "center" },
-  qL: { fontSize: 11, fontWeight: 600, color: "#555" },
+  qGrid: { display: "grid", gap: 8, marginBottom: 24 },
+  qBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 4px", background: "#C7BCA8", border: "none", borderRadius: 12, cursor: "pointer", fontFamily: ff },
+  qIc: { width: 40, height: 40, borderRadius: 8, background: "#072814", color: "#3AE58D", display: "flex", alignItems: "center", justifyContent: "center" },
+  qL: { fontSize: 11, fontWeight: 600, color: "#072814" },
 
   /* Section headers */
-  sh: { fontSize: 15, fontWeight: 700, color: "#0B2E1A", marginBottom: 12, marginTop: 8 },
-  stepH: { fontSize: 14, fontWeight: 700, color: "#0B2E1A", marginBottom: 10, marginTop: 18 },
+  sh: { fontSize: 10, fontWeight: 700, color: "#aaa", marginBottom: 10, marginTop: 8, letterSpacing: "1.8px", textTransform: "uppercase" },
+  stepH: { fontSize: 14, fontWeight: 700, color: "#072814", marginBottom: 10, marginTop: 18 },
 
   /* Cards */
-  emptyCard: { background: "#fff", border: "1px solid #e8e8e6", borderRadius: 14, padding: 20, textAlign: "center", marginBottom: 14 },
-  upCard: { display: "flex", alignItems: "center", gap: 12, background: "#fff", border: "1px solid #e8e8e6", borderRadius: 14, padding: "14px 16px", marginBottom: 8 },
-  upIc: { width: 40, height: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  creditCard: { background: "#fff", border: "1px solid #e8e8e6", borderRadius: 14, padding: 16 },
-  creditBanner: { background: "#2D8A5E10", border: "1px solid #2D8A5E22", borderRadius: 14, padding: "14px 16px", marginBottom: 10 },
+  emptyCard: { background: "#fff", border: "0.5px solid #e0ddd6", borderRadius: 12, padding: 20, textAlign: "center", marginBottom: 14 },
+  upCard: { display: "flex", alignItems: "center", gap: 12, background: "#fff", border: "0.5px solid #e0ddd6", borderRadius: 12, padding: "13px 14px", marginBottom: 8 },
+  upIc: { width: 40, height: 40, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  creditCard: { background: "#fff", border: "0.5px solid #e0ddd6", borderRadius: 12, padding: 16 },
+  creditBanner: { background: "rgba(7,40,20,0.06)", border: "1px solid rgba(7,40,20,0.12)", borderRadius: 12, padding: "14px 16px", marginBottom: 10 },
 
   /* Progress bar */
   bar: { height: 6, borderRadius: 3, background: "#f0f0ee", overflow: "hidden" },
   barF: { height: "100%", borderRadius: 3, transition: "width .3s" },
 
   /* About / Contact */
-  aboutGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 },
-  aboutCard: { background: "#fff", border: "1px solid #e8e8e6", borderRadius: 14, padding: 16 },
-  contactBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 16px", background: "#fff", border: "1px solid #e8e8e6", borderRadius: 12, fontSize: 13, fontWeight: 600, color: "#2D8A5E", textDecoration: "none", fontFamily: ff, cursor: "pointer" },
+  aboutGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 18 },
+  aboutCard: { background: "#fff", border: "0.5px solid #e0ddd6", borderRadius: 12, padding: 13 },
+  contactBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 16px", background: "#fff", border: "0.5px solid #e0ddd6", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "#072814", textDecoration: "none", fontFamily: ff, cursor: "pointer" },
 
   /* Date scroll */
   dateScroll: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 4 },
-  dateBtn: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, minWidth: 60, height: 78, padding: "6px 8px", background: "#fff", border: "1.5px solid #e8e8e6", borderRadius: 14, cursor: "pointer", fontFamily: ff, position: "relative", flexShrink: 0 },
-  dateSel: { background: "#2D8A5E", borderColor: "#2D8A5E" },
+  dateBtn: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, minWidth: 60, height: 78, padding: "6px 8px", background: "#fff", border: "1.5px solid #e0ddd6", borderRadius: 12, cursor: "pointer", fontFamily: ff, position: "relative", flexShrink: 0 },
+  dateSel: { background: "#072814", borderColor: "#072814" },
 
   /* Grids */
   durGrid: { display: "grid", gap: 8 },
-  durBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "14px 6px", background: "#fff", border: "1.5px solid #e8e8e6", borderRadius: 12, cursor: "pointer", fontFamily: ff },
-  durSel: { background: "#2D8A5E", borderColor: "#2D8A5E" },
+  durBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "14px 6px", background: "#fff", border: "1.5px solid #e0ddd6", borderRadius: 12, cursor: "pointer", fontFamily: ff },
+  durSel: { background: "#072814", borderColor: "#072814" },
   timeGrid: { display: "grid", gap: 8 },
-  timeBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "12px 6px", background: "#fff", border: "1.5px solid #e8e8e6", borderRadius: 10, cursor: "pointer", fontFamily: ff },
-  timeSel: { background: "#2D8A5E", borderColor: "#2D8A5E" },
+  timeBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "12px 6px", background: "#fff", border: "1.5px solid #e0ddd6", borderRadius: 10, cursor: "pointer", fontFamily: ff },
+  timeSel: { background: "#072814", borderColor: "#072814" },
   bayGrid: { display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 },
-  bayBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "14px 4px", background: "#fff", border: "1.5px solid #e8e8e6", borderRadius: 12, cursor: "pointer", fontFamily: ff },
-  baySel: { background: "#2D8A5E", borderColor: "#2D8A5E" },
+  bayBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "14px 4px", background: "#fff", border: "1.5px solid #e0ddd6", borderRadius: 12, cursor: "pointer", fontFamily: ff },
+  baySel: { background: "#072814", borderColor: "#072814" },
   bayOff: { opacity: 0.4, cursor: "not-allowed" },
 
   /* Price / Confirmation */
-  pricePreview: { background: "#2D8A5E0A", border: "1px solid #2D8A5E22", borderRadius: 14, padding: 16, marginTop: 14 },
+  pricePreview: { background: "rgba(7,40,20,0.04)", border: "1px solid rgba(7,40,20,0.12)", borderRadius: 12, padding: 16, marginTop: 14 },
   rateInfo: { marginTop: 20, padding: "12px 14px", background: "#f8f8f6", borderRadius: 10 },
-  confCard: { background: "#fff", border: "1px solid #e8e8e6", borderRadius: 16, padding: 20, marginBottom: 14 },
+  confCard: { background: "#fff", border: "0.5px solid #e0ddd6", borderRadius: 12, padding: 20, marginBottom: 14 },
   confRow: { display: "flex", justifyContent: "space-between", padding: "8px 0" },
   confL: { fontSize: 13, color: "#888" },
   confV: { fontSize: 13, fontWeight: 600, textAlign: "right" },
   confDiv: { height: 1, background: "#f2f2f0", margin: "6px 0" },
-  polBox: { background: "#F0F7F4", border: "1px solid #4A8B6E22", borderRadius: 14, padding: 16, marginTop: 14 },
+  polBox: { background: "rgba(7,40,20,0.04)", border: "1px solid rgba(7,40,20,0.1)", borderRadius: 12, padding: 16, marginTop: 14 },
   chkRow: { display: "flex", alignItems: "center", cursor: "pointer" },
 
   /* Tabs */
   tabs: { display: "flex", gap: 3, marginBottom: 16, background: "#f0f0ee", borderRadius: 12, padding: 3 },
   tabBtn: { flex: 1, padding: "9px 4px", borderRadius: 10, border: "none", background: "transparent", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: ff, color: "#888", textAlign: "center" },
-  tabSel: { background: "#fff", color: "#1a1a1a", boxShadow: "0 1px 4px rgba(0,0,0,.08)" },
+  tabSel: { background: "#fff", color: "#072814", boxShadow: "0 1px 4px rgba(0,0,0,.08)" },
 
   /* Mode toggle */
   modeToggle: { display: "flex", gap: 3, marginBottom: 14, background: "#f0f0ee", borderRadius: 10, padding: 3 },
   modeBtn: { flex: 1, padding: "8px 4px", borderRadius: 8, border: "none", background: "transparent", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: ff, color: "#888", textAlign: "center" },
-  modeSel: { background: "#fff", color: "#5B6DCD", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
+  modeSel: { background: "#fff", color: "#00305B", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
 
   /* Coach card */
-  coachCard: { flex: 1, display: "flex", alignItems: "center", gap: 10, padding: "14px 14px", background: "#fff", border: "1.5px solid #e8e8e6", borderRadius: 14, cursor: "pointer", fontFamily: ff },
-  coachAv: { width: 36, height: 36, borderRadius: 8, background: "#5B6DCD", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, fontFamily: mono, flexShrink: 0 },
+  coachCard: { flex: 1, display: "flex", alignItems: "center", gap: 10, padding: "14px 14px", background: "#fff", border: "0.5px solid #e0ddd6", borderRadius: 12, cursor: "pointer", fontFamily: ff },
+  coachAv: { width: 36, height: 36, borderRadius: 8, background: "#00305B", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, fontFamily: ff, flexShrink: 0 },
 
   /* Package / Detail cards */
-  pkgCard: { background: "#fff", border: "1px solid #e8e8e6", borderRadius: 16, padding: 20, marginBottom: 14 },
-  creditDetailCard: { background: "#fff", border: "1px solid #e8e8e6", borderRadius: 16, padding: 20, marginBottom: 14 },
-  detailCard: { background: "#fff", border: "1px solid #e8e8e6", borderRadius: 16, padding: 20, marginBottom: 14 },
-  detailH: { fontSize: 14, fontWeight: 700, marginBottom: 12 },
+  pkgCard: { background: "#fff", border: "0.5px solid #e0ddd6", borderRadius: 12, padding: 20, marginBottom: 14 },
+  creditDetailCard: { background: "#fff", border: "0.5px solid #e0ddd6", borderRadius: 12, padding: 20, marginBottom: 14 },
+  detailCard: { background: "#fff", border: "0.5px solid #e0ddd6", borderRadius: 12, padding: 20, marginBottom: 14 },
+  detailH: { fontSize: 14, fontWeight: 700, marginBottom: 12, color: "#072814" },
   detailRow: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f2f2f0" },
   detailL: { fontSize: 13, color: "#888" },
   detailV: { fontSize: 13, fontWeight: 600, textAlign: "right" },
 
-  /* Membership gradient card */
-  mc: { borderRadius: 18, padding: "22px 20px" },
-  mcBadge: { background: "#ffffff33", color: "#fff", fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 6, fontFamily: mono, letterSpacing: 1 },
+  /* Membership card */
+  mc: { borderRadius: 12, padding: "18px" },
+  mcBadge: { background: "#ffffff33", color: "#fff", fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 6, fontFamily: ff, letterSpacing: 1 },
   mcManage: { fontSize: 12, fontWeight: 600, color: "#ffffffcc", background: "#ffffff22", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontFamily: ff },
 
   /* History row */
   histRow: { display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid #f2f2f0" },
 
   /* Profile */
-  sec: { background: "#fff", border: "1px solid #e8e8e6", borderRadius: 16, padding: 20, marginBottom: 14 },
-  secL: { fontSize: 14, fontWeight: 700, marginBottom: 14, color: "#0B2E1A" },
+  sec: { background: "#fff", border: "0.5px solid #e0ddd6", borderRadius: 12, padding: 20, marginBottom: 14 },
+  secL: { fontSize: 14, fontWeight: 700, marginBottom: 14, color: "#072814" },
   fRow: { display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #f2f2f0" },
   fL: { fontSize: 11, color: "#888", fontWeight: 600, marginBottom: 2 },
   fV: { fontSize: 14, fontWeight: 500 },
   editBtn: { width: 32, height: 32, borderRadius: 8, background: "#f0f0ee", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#888", flexShrink: 0 },
-  addCardBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12, padding: "12px 16px", background: "#f8f8f6", border: "1px dashed #ccc", borderRadius: 12, width: "100%", fontSize: 13, fontWeight: 600, color: "#2D8A5E", cursor: "pointer", fontFamily: ff },
+  addCardBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12, padding: "12px 16px", background: "#f8f8f6", border: "1px dashed #ccc", borderRadius: 12, width: "100%", fontSize: 13, fontWeight: 600, color: "#072814", cursor: "pointer", fontFamily: ff },
   delCardBtn: { width: 32, height: 32, borderRadius: 8, background: "#FFF0F0", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#E03928", flexShrink: 0 },
-  profIn: { width: "100%", padding: "13px 14px", border: "1px solid #e8e8e6", borderRadius: 12, fontSize: 14, fontFamily: ff, color: "#1a1a1a" },
+  profIn: { width: "100%", padding: "13px 14px", border: "1px solid #e0ddd6", borderRadius: 12, fontSize: 14, fontFamily: ff, color: "#1a1a1a" },
 
   /* Toast */
   toast: { position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff", padding: "12px 24px", borderRadius: 50, fontSize: 13, fontWeight: 500, fontFamily: ff, boxShadow: "0 10px 36px rgba(0,0,0,.22)", zIndex: 200, animation: "ti .25s ease", whiteSpace: "nowrap" },
 
   /* Overlay / Modal */
   ov: { position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 150, padding: 20, animation: "fadeIn .15s ease" },
-  mod: { background: "#fff", borderRadius: 20, padding: 24, maxWidth: 440, width: "100%", maxHeight: "85vh", overflowY: "auto" },
+  mod: { background: "#fff", borderRadius: 16, padding: 24, maxWidth: 440, width: "100%", maxHeight: "85vh", overflowY: "auto" },
 };
