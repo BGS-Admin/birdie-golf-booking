@@ -597,6 +597,7 @@ export default function BirdieGolfWebsite() {
           setOtpSending(true);
           try {
             const res = await square("otp.send", { phone: ph });
+            console.log("otp.send response:", JSON.stringify(res));
             if (res && res.sent) {
               setAuthStep("otp");
             } else {
