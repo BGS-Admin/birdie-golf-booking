@@ -9,30 +9,45 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 const SUPABASE_URL = "https://dvaviudmsofyqttcazpw.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2YXZpdWRtc29meXF0dGNhenB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3ODc1MTgsImV4cCI6MjA5MDM2MzUxOH0.SWrAlnKZ33cIAQmn0dAQFfcAZ6b8qBZcp6Dyq2gMb2g";
 
+/* ─── Public tables readable directly with anon key (no sensitive data) ─── */
+const PUBLIC_TABLES = ["admin_settings", "pricing_config", "coaches", "coach_schedules"];
+
 const sb = {
   headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "return=representation" },
   async get(table, query = "") {
     try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { headers: this.headers });
-      return r.ok ? await r.json() : [];
+      if (PUBLIC_TABLES.includes(table)) {
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { headers: this.headers });
+        return r.ok ? await r.json() : [];
+      }
+      return await square("db.get", { table, query });
     } catch { return []; }
   },
   async post(table, data) {
     try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, { method: "POST", headers: this.headers, body: JSON.stringify(data) });
-      return r.ok ? await r.json() : null;
+      if (PUBLIC_TABLES.includes(table)) {
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, { method: "POST", headers: this.headers, body: JSON.stringify(data) });
+        return r.ok ? await r.json() : null;
+      }
+      return await square("db.post", { table, data });
     } catch { return null; }
   },
   async patch(table, query, data) {
     try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { method: "PATCH", headers: this.headers, body: JSON.stringify(data) });
-      return r.ok ? await r.json() : null;
+      if (PUBLIC_TABLES.includes(table)) {
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { method: "PATCH", headers: this.headers, body: JSON.stringify(data) });
+        return r.ok ? await r.json() : null;
+      }
+      return await square("db.patch", { table, query, data });
     } catch { return null; }
   },
   async del(table, query) {
     try {
-      await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { method: "DELETE", headers: this.headers });
-      return true;
+      if (PUBLIC_TABLES.includes(table)) {
+        await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { method: "DELETE", headers: this.headers });
+        return true;
+      }
+      return await square("db.delete", { table, query });
     } catch { return false; }
   }
 };
