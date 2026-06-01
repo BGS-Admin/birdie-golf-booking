@@ -576,12 +576,12 @@ export default function BirdieGolfWebsite() {
     // Save transaction to Supabase (fire and forget)
     sb.post("transactions", {
       customer_id: customerId, description: "Bay Booking · Bay " + bookingData.bay,
-      date: dateKey(new Date()), amount: bookingData.total, payment_label: "Visa ····4242",
+      date: dateKey(new Date()), amount: bookingData.total, payment_label: bookingData.cardLabel || "Card",
       square_payment_id: sqPaymentId,
     });
     // Always update local display
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    setTransactions(p => [{ desc: "Bay Booking · Bay " + bookingData.bay, date: today, method: "Visa ····4242", amt: "$" + bookingData.total.toFixed(2) }, ...p]);
+    setTransactions(p => [{ desc: "Bay Booking · Bay " + bookingData.bay, date: today, method: bookingData.cardLabel || "Card", amt: "$" + bookingData.total.toFixed(2) }, ...p]);
     // Send confirmation emails
     const emailData = {
       customer_name: onbF + " " + onbL,
@@ -619,11 +619,11 @@ export default function BirdieGolfWebsite() {
     // Save transaction to Supabase (fire and forget)
     sb.post("transactions", {
       customer_id: customerId, description: "Lesson · " + bookingData.coachName,
-      date: dateKey(new Date()), amount: bookingData.total, payment_label: bookingData.credit ? "Credit" : "Visa ····4242",
+      date: dateKey(new Date()), amount: bookingData.total, payment_label: bookingData.credit ? "Credit" : (bookingData.cardLabel || "Card"),
     });
     // Always update local display
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    setTransactions(p => [{ desc: "Lesson · " + bookingData.coachName, date: today, method: bookingData.credit ? "Credit" : "Visa ····4242", amt: "$" + bookingData.total.toFixed(2) }, ...p]);
+    setTransactions(p => [{ desc: "Lesson · " + bookingData.coachName, date: today, method: bookingData.credit ? "Credit" : (bookingData.cardLabel || "Card"), amt: "$" + bookingData.total.toFixed(2) }, ...p]);
     // Send confirmation emails
     const emailData = {
       customer_name: onbF + " " + onbL,
@@ -666,7 +666,6 @@ export default function BirdieGolfWebsite() {
           setOtpSending(true);
           try {
             const res = await square("otp.send", { phone: ph });
-            console.log("otp.send response:", JSON.stringify(res));
             if (res && res.sent) {
               if (res.sid) setVerifySid(res.sid);
               setAuthStep("otp");
@@ -700,19 +699,12 @@ export default function BirdieGolfWebsite() {
         </div>
         <button style={{ ...S.b1, marginTop: 16, opacity: otp.every(d => d) ? 1 : 0.4 }} onClick={async () => {
           if (!otp.every(d => d)) return;
-          // TODO: Remove dev bypass before launch
-          const DEV_PHONE = "5615735560";
-          const DEV_CODE = "000000";
-          const isDev = ph === DEV_PHONE && otp.join("") === DEV_CODE;
-          if (!isDev) {
-            const verifyRes = await square("otp.verify", { phone: ph, code: otp.join(""), sid: verifySid });
-            console.log("otp.verify response:", JSON.stringify(verifyRes));
-            if (!verifyRes || !verifyRes.approved) {
-              fire("Incorrect code — please try again");
-              setOtp(["","","","","",""]);
-              otpRefs[0].current?.focus();
-              return;
-            }
+          const verifyRes = await square("otp.verify", { phone: ph, code: otp.join(""), sid: verifySid });
+          if (!verifyRes || !verifyRes.approved) {
+            fire("Incorrect code — please try again");
+            setOtp(["","","","","",""]);
+            otpRefs[0].current?.focus();
+            return;
           }
           // Look up phone in Supabase — skip onboarding if existing customer
           const existing = await sb.get("customers", `phone=eq.${ph}&select=*`);
@@ -1091,7 +1083,7 @@ export default function BirdieGolfWebsite() {
               <button style={{ ...S.b1, flex: 2, opacity: bkAgree ? 1 : 0.4 }} onClick={async () => {
                 if (!bkAgree) return;
                 const durH = bkDur * 0.5;
-                await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: price.total, credits: price.credits, disc: price.disc });
+                await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: price.total, credits: price.credits, disc: price.disc, cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card" });
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? bkDate.toISOString().split("T")[0] : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
                 if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
                 fire("Bay booked!"); resetBk(); setTab("home");
@@ -1221,7 +1213,7 @@ export default function BirdieGolfWebsite() {
               <button style={S.b2} onClick={() => setLesStep(0)}>Back</button>
               <button style={{ ...S.b1, flex: 2, background: "#00305B", opacity: lesAgree ? 1 : 0.4 }} onClick={async () => {
                 if (!lesAgree) return;
-                await saveLessonBooking({ bay: bayAssigned, date: lesDate, time: lesTime, coachId: lesCoach, coachName: coach?.n, total: lp.total, credit: lp.credit });
+                await saveLessonBooking({ bay: bayAssigned, date: lesDate, time: lesTime, coachId: lesCoach, coachName: coach?.n, total: lp.total, credit: lp.credit, cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card" });
                 setUpcomingBk(p => [...p, { type: "lesson", label: "Lesson · " + coach?.n, sub: fmtDate(lesDate) + " · " + lesTime + " · 1hr" }]);
                 if (lp.credit) { setTotL(c => Math.max(0, c - 1)); setCreditUsage(p => [...p, { date: fmtDate(new Date()), desc: "Lesson with " + coach?.n }]); }
                 setLesHistory(p => [...p, { type: "lesson", desc: "Lesson with " + coach?.n, date: fmtDate(new Date()), amt: lp.credit ? "1 credit" : lp.label }]);
@@ -1336,9 +1328,9 @@ export default function BirdieGolfWebsite() {
               const existingPkg = await sb.get("lesson_packages", `customer_id=eq.${customerId}&status=eq.active&select=id`);
               if (existingPkg?.length > 0) { fire("You already have an active lesson package. Use your remaining credits first."); setSelPkg(null); setPkgCoach(null); return; }
               await sb.post("lesson_packages", { customer_id: customerId, name: selPkg.name, total_credits: selPkg.credits, remaining_credits: selPkg.credits, coach_id: pkgCoach, coach_name: coach?.n, price: selPkg.price, expiry_date: dateKey(expDate), status: "active", purchase_date: dateKey(today) });
-              await sb.post("transactions", { customer_id: customerId, description: selPkg.name + " · " + coach?.n, date: dateKey(today), amount: selPkg.price, payment_label: "Visa ····4242" });
+              await sb.post("transactions", { customer_id: customerId, description: selPkg.name + " · " + coach?.n, date: dateKey(today), amount: selPkg.price, payment_label: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card" });
               setTotL(selPkg.credits); setMaxL(selPkg.credits); setCreditCoachId(pkgCoach); setCreditPkg(selPkg.name); setCreditPurchaseDate(fmtShort(today)); setCreditExp(fmtShort(expDate)); setCreditUsage([]);
-              setTransactions(p => [{ desc: selPkg.name + " · " + coach?.n, date: fmtShort(today), method: "Visa ····4242", amt: "$" + selPkg.price + ".00" }, ...p]);
+              setTransactions(p => [{ desc: selPkg.name + " · " + coach?.n, date: fmtShort(today), method: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card", amt: "$" + selPkg.price + ".00" }, ...p]);
               sendEmail("lesson_package", {
                 customer_name: onbF + " " + onbL,
                 customer_email: profEmail || onbE,
