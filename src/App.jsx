@@ -1334,8 +1334,22 @@ export default function BirdieGolfWebsite() {
               const fmtShort = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
               const existingPkg = await sb.get("lesson_packages", `customer_id=eq.${customerId}&status=eq.active&select=id`);
               if (existingPkg?.length > 0) { fire("You already have an active lesson package. Use your remaining credits first."); setSelPkg(null); setPkgCoach(null); return; }
-              await sb.post("lesson_packages", { customer_id: customerId, name: selPkg.name, total_credits: selPkg.credits, remaining_credits: selPkg.credits, coach_id: pkgCoach, coach_name: coach?.n, price: selPkg.price, expiry_date: dateKey(expDate), status: "active", purchase_date: dateKey(today) });
-              await sb.post("transactions", { customer_id: customerId, description: selPkg.name + " · " + coach?.n, date: dateKey(today), amount: selPkg.price, payment_label: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card" });
+              // Charge via Square catalog item
+              let sqPaymentId = null;
+              if (sqCustId && cards?.[0]?.square_card_id) {
+                const isMem = !!tier && tier !== "none";
+                const chargeRes = await square("lesson.purchase", {
+                  square_customer_id: sqCustId,
+                  card_id: cards[0].square_card_id,
+                  coach_id: pkgCoach,
+                  hours: selPkg.credits,
+                  is_member: isMem,
+                });
+                sqPaymentId = chargeRes?.payment?.id;
+                if (chargeRes?.error || !sqPaymentId) { fire("Payment failed — please try again."); return; }
+              }
+              await sb.post("lesson_packages", { customer_id: customerId, name: selPkg.name, total_credits: selPkg.credits, remaining_credits: selPkg.credits, coach_id: pkgCoach, coach_name: coach?.n, price: selPkg.price, expiry_date: dateKey(expDate), status: "active", purchase_date: dateKey(today), square_payment_id: sqPaymentId });
+              await sb.post("transactions", { customer_id: customerId, description: selPkg.name + " · " + coach?.n, date: dateKey(today), amount: selPkg.price, payment_label: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card", square_payment_id: sqPaymentId });
               setTotL(selPkg.credits); setMaxL(selPkg.credits); setCreditCoachId(pkgCoach); setCreditPkg(selPkg.name); setCreditPurchaseDate(fmtShort(today)); setCreditExp(fmtShort(expDate)); setCreditUsage([]);
               setTransactions(p => [{ desc: selPkg.name + " · " + coach?.n, date: fmtShort(today), method: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card", amt: "$" + selPkg.price + ".00" }, ...p]);
               sendEmail("lesson_package", {
