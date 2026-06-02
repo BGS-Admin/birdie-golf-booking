@@ -551,13 +551,16 @@ export default function BirdieGolfWebsite() {
     // 1. Charge via Square (if amount > 0 and customer has Square profile)
     let sqPaymentId = null;
     if (bookingData.total > 0 && sqCustId) {
-      const payment = await square("payment.create", {
+      const cardId = cards?.[0]?.square_card_id;
+      const chargeRes = await square("bay.charge", {
         square_customer_id: sqCustId,
-        amount: bookingData.total,
+        card_id: cardId,
+        slots: bookingData.durSlots,
+        is_peak: bookingData.isPeak === true,
         note: `Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.durSlots * 0.5}hr`,
       });
-      sqPaymentId = payment?.payment?.id;
-      if (payment?.errors) { console.error("Square payment failed:", payment.errors); }
+      sqPaymentId = chargeRes?.payment?.id;
+      if (chargeRes?.error) { console.error("Square charge failed:", chargeRes.error); }
     }
     // 2. Save booking to Supabase
     const result = await sb.post("bookings", {
@@ -601,12 +604,16 @@ export default function BirdieGolfWebsite() {
     // 1. Charge via Square (if not using credit and customer has Square profile)
     let sqPaymentId = null;
     if (bookingData.total > 0 && !bookingData.credit && sqCustId) {
-      const payment = await square("payment.create", {
+      const cardId = cards?.[0]?.square_card_id;
+      const chargeRes = await square("lesson.purchase", {
         square_customer_id: sqCustId,
-        amount: bookingData.total,
-        note: `Lesson · ${bookingData.coachName} · ${bookingData.time}`,
+        card_id: cardId,
+        coach_id: bookingData.coachId,
+        hours: 1,
+        is_member: !!tier && tier !== "none",
       });
-      sqPaymentId = payment?.payment?.id;
+      sqPaymentId = chargeRes?.payment?.id;
+      if (chargeRes?.error) { console.error("Lesson charge failed:", chargeRes.error); }
     }
     // 2. Save booking to Supabase
     const result = await sb.post("bookings", {
@@ -1083,7 +1090,7 @@ export default function BirdieGolfWebsite() {
               <button style={{ ...S.b1, flex: 2, opacity: bkAgree ? 1 : 0.4 }} onClick={async () => {
                 if (!bkAgree) return;
                 const durH = bkDur * 0.5;
-                await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: price.total, credits: price.credits, disc: price.disc, cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card" });
+                await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: price.total, credits: price.credits, disc: price.disc, isPeak: isPeak(bkDate, bkTime), cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card" });
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? bkDate.toISOString().split("T")[0] : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
                 if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
                 fire("Bay booked!"); resetBk(); setTab("home");
@@ -1446,12 +1453,14 @@ export default function BirdieGolfWebsite() {
             <button style={{ ...S.b1, flex: 2, background: t?.c }} onClick={async () => {
               let sqPaymentId = null;
               if (total > 0 && sqCustId && sqCardId) {
-                const memLineItems = [{ name: t?.n + " Membership - First Month", amount: t?.price || 0 }];
-                if (ef > 0) memLineItems.push({ name: t?.n + " Enrollment Fee (one-time)", amount: ef });
-                const order = await square("order.create", { square_customer_id: sqCustId, line_items: memLineItems });
-                const orderId = order?.order?.id;
-                const payment = await square("payment.create", { square_customer_id: sqCustId, card_id: sqCardId, amount: total, order_id: orderId, note: t?.n + " Membership" });
-                sqPaymentId = payment?.payment?.id;
+                const chargeRes = await square("membership.charge", {
+                  square_customer_id: sqCustId,
+                  card_id: sqCardId,
+                  tier: memModal.to,
+                  enrollment_fee: ef > 0,
+                });
+                sqPaymentId = chargeRes?.payment?.id;
+                if (chargeRes?.error) { console.error("Membership charge failed:", chargeRes.error); }
               }
               // Guard: re-check customer has no active membership before writing
               const freshCust = await sb.get("customers", `id=eq.${customerId}&select=tier`);
