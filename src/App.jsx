@@ -56,12 +56,13 @@ const sb = {
 const SQUARE_APP_ID = "sq0idp-prGGxuOWteVLYPoXaawqlQ";
 const SQUARE_LOCATION_ID = "LTNVZZ9PJH2K8";
 const SQUARE_FN_URL = `${SUPABASE_URL}/functions/v1/square-proxy`;
+const BGS_API_KEY = "bgs-app-2026-x9k3m7p";
 
 const square = async (action, params = {}) => {
   try {
     const r = await fetch(SQUARE_FN_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}`, "x-bgs-key": BGS_API_KEY },
       body: JSON.stringify({ action, ...params }),
     });
     const json = await r.json().catch(() => null);
