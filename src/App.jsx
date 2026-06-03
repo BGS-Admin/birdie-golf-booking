@@ -1472,7 +1472,7 @@ export default function BirdieGolfWebsite() {
 
       {memTab === "memberships" && <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
         {Object.entries(TIERS).map(([k, t]) => <div key={k} style={{ ...S.pkgCard, borderLeft: `3px solid ${t.c}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><span style={{ background: t.c, color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontFamily: mono, letterSpacing: 1 }}>{t.badge}</span><span style={{ fontSize: 16, fontWeight: 700 }}>{t.n}</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><span style={{ background: t.c, color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontFamily: ff, letterSpacing: 1 }}>{t.badge}</span><span style={{ fontSize: 16, fontWeight: 700 }}>{t.n}</span></div>
           <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>${t.price}<span style={{ fontSize: 13, color: "#888", fontWeight: 400 }}>/mo</span></p>
           {t.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}><span style={{ color: t.c, flexShrink: 0 }}>{X.chk(14)}</span><span style={{ fontSize: 12 }}>{p}</span></div>)}
           {t.enrollmentFee && enrollmentFeeEnabled && <p style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>One-time ${t.enrollmentFee} enrollment fee at sign-up.</p>}
@@ -1984,7 +1984,7 @@ const LS = {
   w: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(155deg,#072814,#0a3520 45%,#0f4a25)", fontFamily: ff, padding: 20 },
   c: { background: "#fff", borderRadius: 22, padding: "36px 28px", width: "100%", maxWidth: 420, boxShadow: "0 28px 80px rgba(0,0,0,0.28)" },
   br: { textAlign: "center", marginBottom: 24 },
-  bn: { fontFamily: mono, fontSize: 18, fontWeight: 700, color: "#072814", letterSpacing: 3 },
+  bn: { fontFamily: ff, fontSize: 18, fontWeight: 700, color: "#072814", letterSpacing: 3 },
   bs: { fontFamily: ff, fontSize: 12, color: "#888", letterSpacing: 0.5, marginTop: 4 },
   label: { fontSize: 11, fontWeight: 700, color: "#888", letterSpacing: 1, marginBottom: 6, display: "block" },
   phRow: { display: "flex", alignItems: "center", gap: 8, background: "#f8f8f6", borderRadius: 12, padding: "0 14px", border: "1px solid #e8e8e6" },
@@ -2000,7 +2000,7 @@ const LS = {
   footer: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, marginTop: 20, paddingTop: 16, borderTop: "1px solid #f2f2f0" },
   footerText: { fontSize: 11, color: "#aaa" },
   otpRow: { display: "flex", gap: 8, justifyContent: "center" },
-  otpIn: { width: 46, height: 52, textAlign: "center", fontSize: 22, fontWeight: 700, fontFamily: mono, border: "1px solid #e8e8e6", borderRadius: 12, background: "#f8f8f6", color: "#1a1a1a" },
+  otpIn: { width: 46, height: 52, textAlign: "center", fontSize: 22, fontWeight: 700, fontFamily: ff, border: "1px solid #e8e8e6", borderRadius: 12, background: "#f8f8f6", color: "#1a1a1a" },
   nameRow: { display: "flex", gap: 10, marginBottom: 12 },
   onbIn: { width: "100%", padding: "13px 14px", border: "1px solid #e8e8e6", borderRadius: 12, fontSize: 14, fontFamily: ff, color: "#1a1a1a" },
 };
