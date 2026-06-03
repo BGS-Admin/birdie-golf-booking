@@ -95,7 +95,7 @@ const X = {
 /* ─── Business Constants ─── */
 const TIERS = {
   starter:      { n: "Starter",      c: "#C7BCA8", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate"] },
-  early_birdie: { n: "Early Birdie", c: "#00305B", badge: "EBD", price: 150, hrs: -1, enrollmentFee: 50, perks: ["Unlimited bay access Mon-Fri 7am-4pm", "Full rate applies outside those hours", "Members-only events"] },
+  early_birdie: { n: "Early Birdie", c: "#00305B", badge: "EBD", price: 150, hrs: 0, enrollmentFee: 50, perks: ["Up to 2 hrs/day Mon–Fri 8am–4pm included", "20% off additional non-peak hours in that window", "Full rate applies outside Mon–Fri 8am–4pm", "Members-only events"] },
   player:       { n: "Player",       c: "#072814", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hrs bay rental/mo", "20% off additional hours", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
   champion:     { n: "Champion",     c: "#000000", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited bay rental (max 2hr/booking)", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
 };
@@ -195,21 +195,32 @@ function slotRate(dt, slot, cfg) { return isWeekend(dt) ? cfg.wk : isPeak(dt, sl
 const TAX_RATE = 0.07;
 const applyTax = (subtotal) => Math.round(subtotal * TAX_RATE * 100) / 100;
 
-function calcPrice(dt, startSlot, durSlots, tier, bayCredits, cfg, hoursConfig) {
+function calcPrice(dt, startSlot, durSlots, tier, bayCredits, cfg, hoursConfig, ebUsedToday = 0) {
   const hrs = getHours(dt, hoursConfig), si = hrs.indexOf(startSlot), needed = hrs.slice(si, si + durSlots), durHrs = durSlots * 0.5;
   if (tier === "champion") return { total: 0, disc: 0, credits: durHrs, base: 0, tax: 0, subtotal: 0 };
   let base = 0; needed.forEach(s => { base += slotRate(dt, s, cfg) * 0.5; });
   if (tier === "early_birdie") {
-    // Free Mon-Fri 7am-3:59am; slots starting at 16.0 (4pm) or later on weekdays cost full rate; all weekend slots cost full rate
-    let freeHrs = 0, paidBase = 0;
+    // Up to 2 hrs/day (4 slots) free Mon-Fri 8am-4pm
+    // Additional non-peak slots in that window → 20% discount
+    // Outside window (peak or weekend) → full rate
+    const ebUsed = ebUsedToday;
+    let freeSlots = 0, discBase = 0, paidBase = 0;
+    let ebRemaining = Math.max(0, 4 - ebUsed);
     needed.forEach(s => {
       const h = toH(s);
-      if (!isWeekend(dt) && h < 16) { freeHrs += 0.5; }
-      else { paidBase += slotRate(dt, s, cfg) * 0.5; }
+      const inWindow = !isWeekend(dt) && h >= 8 && h < 16;
+      if (inWindow && ebRemaining > 0) {
+        freeSlots += 1; ebRemaining--;
+      } else if (inWindow) {
+        discBase += cfg.op * 0.5; // 20% discount on non-peak rate
+      } else {
+        paidBase += slotRate(dt, s, cfg) * 0.5; // full rate outside window
+      }
     });
-    const subtotal = paidBase;
+    const disc = discBase * 0.20;
+    const subtotal = (discBase - disc) + paidBase;
     const tax = applyTax(subtotal);
-    return { total: subtotal + tax, disc: 0, credits: freeHrs, base, tax, subtotal };
+    return { total: subtotal + tax, disc, credits: freeSlots * 0.5, base, tax, subtotal };
   }
   if (tier === "player") {
     const credHrs = Math.min(bayCredits, durHrs), credSlots = credHrs * 2;
@@ -432,6 +443,7 @@ export default function BirdieGolfWebsite() {
   const [bkDur, setBkDur] = useState(null);
   const [bkTime, setBkTime] = useState(null);
   const [bkBay, setBkBay] = useState(null);
+  const [ebSlotsToday, setEbSlotsToday] = useState(0); // Early Birdie slots already booked today
   const [bkAgree, setBkAgree] = useState(false);
   const [bkOverridePastRenewal, setBkOverridePastRenewal] = useState(false);
 
@@ -466,7 +478,7 @@ export default function BirdieGolfWebsite() {
   const days14 = gen14();
   const creditCoach = COACHES.find(c => c.id === creditCoachId);
   const tierData = TIERS[tier] || null;
-  const resetBk = () => { setBkStep(0); setBkDate(null); setBkDur(null); setBkTime(null); setBkBay(null); setBkAgree(false); setBkOverridePastRenewal(false); };
+  const resetBk = () => { setBkStep(0); setBkDate(null); setBkDur(null); setBkTime(null); setBkBay(null); setBkAgree(false); setBkOverridePastRenewal(false); setEbSlotsToday(0); };
   const hasCard = true; // Card requirement temporarily disabled
   const resetLes = () => { setLesStep(0); setLesDate(null); setLesTime(null); setLesCoach(null); setLesAgree(false); };
 
@@ -548,19 +560,34 @@ export default function BirdieGolfWebsite() {
 
   /* ─── Save booking to Supabase ─── */
   const saveBayBooking = async (bookingData) => {
-    // 1. Charge via Square (if amount > 0 and customer has Square profile)
+    // 1. Square transaction — always create for tracking, even if $0 (credit utilization)
     let sqPaymentId = null;
-    if (bookingData.total > 0 && sqCustId) {
+    if (sqCustId) {
       const cardId = cards?.[0]?.square_card_id;
-      const chargeRes = await square("bay.charge", {
-        square_customer_id: sqCustId,
-        card_id: cardId,
-        slots: bookingData.durSlots,
-        is_peak: bookingData.isPeak === true,
-        note: `Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.durSlots * 0.5}hr`,
-      });
-      sqPaymentId = chargeRes?.payment?.id;
-      if (chargeRes?.error) { console.error("Square charge failed:", chargeRes.error); }
+      if (bookingData.total > 0 && cardId) {
+        // Paid booking — charge card
+        const chargeRes = await square("bay.charge", {
+          square_customer_id: sqCustId,
+          card_id: cardId,
+          slots: bookingData.durSlots,
+          is_peak: bookingData.isPeak === true,
+          note: `Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.durSlots * 0.5}hr`,
+        });
+        sqPaymentId = chargeRes?.payment?.id;
+        if (chargeRes?.error) { console.error("Square charge failed:", chargeRes.error); }
+      } else if (bookingData.credits > 0) {
+        // $0 credit booking — create $0 order in Square for member credit utilization tracking
+        const orderRes = await square("order.create", {
+          square_customer_id: sqCustId,
+          apply_tax: false,
+          line_items: [{
+            name: `Bay ${bookingData.bay} · Member Credit · ${bookingData.credits}hr`,
+            quantity: "1",
+            base_price_money: { amount: 0, currency: "USD" },
+          }],
+        });
+        sqPaymentId = orderRes?.order?.id; // store order ID as reference
+      }
     }
     // 2. Save booking to Supabase
     const result = await sb.post("bookings", {
@@ -601,19 +628,33 @@ export default function BirdieGolfWebsite() {
   };
 
   const saveLessonBooking = async (bookingData) => {
-    // 1. Charge via Square (if not using credit and customer has Square profile)
+    // 1. Square transaction — always create for tracking, even if $0 (credit utilization)
     let sqPaymentId = null;
-    if (bookingData.total > 0 && !bookingData.credit && sqCustId) {
-      const cardId = cards?.[0]?.square_card_id;
-      const chargeRes = await square("lesson.purchase", {
-        square_customer_id: sqCustId,
-        card_id: cardId,
-        coach_id: bookingData.coachId,
-        hours: 1,
-        is_member: !!tier && tier !== "none",
-      });
-      sqPaymentId = chargeRes?.payment?.id;
-      if (chargeRes?.error) { console.error("Lesson charge failed:", chargeRes.error); }
+    if (sqCustId) {
+      if (bookingData.total > 0 && !bookingData.credit) {
+        const cardId = cards?.[0]?.square_card_id;
+        const chargeRes = await square("lesson.purchase", {
+          square_customer_id: sqCustId,
+          card_id: cardId,
+          coach_id: bookingData.coachId,
+          hours: 1,
+          is_member: !!tier && tier !== "none",
+        });
+        sqPaymentId = chargeRes?.payment?.id;
+        if (chargeRes?.error) { console.error("Lesson charge failed:", chargeRes.error); }
+      } else if (bookingData.credit) {
+        // $0 credit lesson — create $0 order for tracking
+        const orderRes = await square("order.create", {
+          square_customer_id: sqCustId,
+          apply_tax: false,
+          line_items: [{
+            name: `Lesson Credit · ${bookingData.coachName}`,
+            quantity: "1",
+            base_price_money: { amount: 0, currency: "USD" },
+          }],
+        });
+        sqPaymentId = orderRes?.order?.id;
+      }
     }
     // 2. Save booking to Supabase
     const result = await sb.post("bookings", {
@@ -932,7 +973,7 @@ export default function BirdieGolfWebsite() {
               </div>
               <div style={{ marginTop: "auto", paddingTop: 12 }}>
                 {tier === "player" && <p style={{ fontSize: 11, color: "#3AE58D", fontWeight: 600 }}>{bayCredits} out of 8 bay credits remaining</p>}
-                {tier === "early_birdie" && <p style={{ fontSize: 11, color: "#C7BCA8", fontWeight: 600 }}>Unlimited credits on weekday non-peak hours</p>}
+                {tier === "early_birdie" && <p style={{ fontSize: 11, color: "#C7BCA8", fontWeight: 600 }}>Up to 2 hrs/day · Mon–Fri 8am–4pm</p>}
                 {tier === "champion" && <p style={{ fontSize: 11, color: "#3AE58D", fontWeight: 600 }}>Unlimited credits</p>}
                 {tier === "starter" && <p style={{ fontSize: 11, color: "#072814", fontWeight: 600 }}>Pay-as-you-go</p>}
               </div>
@@ -1028,7 +1069,7 @@ export default function BirdieGolfWebsite() {
   const renderBook = () => {
     if (bkStep === 1 && bkDate && bkDur && bkTime && bkBay) {
       const { eTier, eCredits, warn } = effectiveTierOn(bkDate);
-      const price = calcPrice(bkDate, bkTime, bkDur, eTier, eCredits, cfg, hoursConfig);
+      const price = calcPrice(bkDate, bkTime, bkDur, eTier, eCredits, cfg, hoursConfig, eTier === "early_birdie" ? ebSlotsToday : 0);
       const durHrs = bkDur * 0.5;
 
       // Past-renewal Player warning — show blocking screen unless user has overridden
@@ -1068,7 +1109,7 @@ export default function BirdieGolfWebsite() {
           <div>
             <div style={S.confCard}>
               {[["Date", fmtDateLong(bkDate)], ["Duration", durHrs + " hr" + (durHrs > 1 ? "s" : "")], ["Time", bkTime], ["Bay", "Bay " + bkBay]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
-              {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{eTier === "early_birdie" ? "Free Window" : "Credits Used"}</span><span style={{ ...S.confV, color: eTier === "early_birdie" ? "#072814" : "#072814" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
+              {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{eTier === "early_birdie" ? "Included (EB)" : "Credits Used"}</span><span style={{ ...S.confV, color: "#072814" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
               {price.disc > 0 && <div style={S.confRow}><span style={S.confL}>Member Discount</span><span style={{ ...S.confV, color: "#072814" }}>-${price.disc.toFixed(2)}</span></div>}
               {price.tax > 0 && <div style={S.confRow}><span style={S.confL}>Tax (7%)</span><span style={S.confV}>${price.tax.toFixed(2)}</span></div>}
               {eTier !== tier && <div style={{ background: "#FFF5E5", border: "1px solid #E8890C33", borderRadius: 8, padding: "8px 12px", marginBottom: 8 }}>
@@ -1118,7 +1159,24 @@ export default function BirdieGolfWebsite() {
           const sel = bkDate && dateKey(bkDate) === dateKey(d);
           const isToday = dateKey(d) === dateKey(new Date());
           return <button key={dateKey(d)} style={{ ...S.dateBtn, ...(sel ? S.dateSel : {}), ...(isToday && !sel ? { borderColor: "#072814" } : {}) }}
-            onClick={() => { setBkDate(d); setBkDur(null); setBkTime(null); setBkBay(null); }}>
+            onClick={async () => {
+              setBkDate(d); setBkDur(null); setBkTime(null); setBkBay(null);
+              if (tier === "early_birdie") {
+                const dateStr = d.toISOString().split("T")[0];
+                const todayBks = await sb.get("bookings", `customer_id=eq.${customerId}&date=eq.${dateStr}&status=eq.confirmed&type=eq.bay&select=start_time,duration_slots`);
+                // Count slots already booked in the EB window (Mon-Fri 8am-4pm)
+                let used = 0;
+                (todayBks || []).forEach(bk => {
+                  const h = toH(bk.start_time);
+                  const isWkday = !isWeekend(d);
+                  for (let i = 0; i < bk.duration_slots; i++) {
+                    const slotH = h + i * 0.5;
+                    if (isWkday && slotH >= 8 && slotH < 16) used++;
+                  }
+                });
+                setEbSlotsToday(used);
+              }
+            }}>
             <span style={{ fontSize: 11, color: sel ? "#fff" : "#888" }}>{dayName(d)}</span>
             <span style={{ fontSize: 18, fontWeight: 700, color: sel ? "#fff" : "#1a1a1a" }}>{d.getDate()}</span>
             <span style={{ fontSize: 10, color: sel ? "#ffffffcc" : "#aaa" }}>{d.toLocaleDateString("en-US", { month: "short" })}</span>
@@ -1164,7 +1222,7 @@ export default function BirdieGolfWebsite() {
 
       {bkDate && bkDur && bkTime && bkBay && (() => {
         const { eTier: pvTier, eCredits: pvCredits, warn: pvWarn } = effectiveTierOn(bkDate);
-        const price = calcPrice(bkDate, bkTime, bkDur, pvTier, pvCredits, cfg, hoursConfig);
+        const price = calcPrice(bkDate, bkTime, bkDur, pvTier, pvCredits, cfg, hoursConfig, pvTier === "early_birdie" ? ebSlotsToday : 0);
         return <div style={{ ...S.pricePreview, ...(pvWarn === "past_renewal_player" ? { borderColor: "#E8890C44", background: "#FFF5E508" } : {}) }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Total</span>
@@ -1391,7 +1449,7 @@ export default function BirdieGolfWebsite() {
             <button style={S.mcManage} onClick={() => setMemTab("memberships")}>Manage →</button>
           </div>
           {tier === "player" && <p style={{ fontSize: 12, color: "#fff", fontWeight: 600, marginTop: 14 }}>{bayCredits} out of 8 bay credits remaining</p>}
-          {tier === "early_birdie" && <p style={{ fontSize: 13, color: "#ffffffcc", marginTop: 14 }}>Unlimited credits on weekday non-peak hours</p>}
+          {tier === "early_birdie" && <p style={{ fontSize: 13, color: "#ffffffcc", marginTop: 14 }}>Up to 2 hrs/day · Mon–Fri 8am–4pm</p>}
           {tier === "champion" && <p style={{ fontSize: 13, color: "#ffffffcc", marginTop: 14 }}>Unlimited credits</p>}
           {totL > 0 && <p style={{ fontSize: 11, color: "#ffffffaa", marginTop: 10 }}>{totL} lesson credit{totL > 1 ? "s" : ""} active</p>}
           <p style={{ fontSize: 11, color: "#ffffff88", marginTop: 10 }}>Renews {renewDate}</p>
