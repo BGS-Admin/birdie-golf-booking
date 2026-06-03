@@ -800,12 +800,18 @@ export default function BirdieGolfWebsite() {
           const result = await sb.post("customers", { phone: ph, first_name: onbF, last_name: onbL, email: onbE, tier: "none", bay_credits_remaining: 0, bay_credits_total: 0 });
           const sbId = result?.[0]?.id;
           if (sbId) setCustomerId(sbId);
-          // 2. Create customer in Square
-          const sqResult = await square("customer.create", { first_name: onbF, last_name: onbL, phone: ph, email: onbE, supabase_id: sbId });
-          const sqId = sqResult?.customer?.id;
+          // 2. Check if customer already exists in Square (by phone), create if not
+          let sqId = null;
+          const sqSearch = await square("customer.search", { phone: ph });
+          const existingSqCust = sqSearch?.customers?.[0];
+          if (existingSqCust) {
+            sqId = existingSqCust.id;
+          } else {
+            const sqResult = await square("customer.create", { first_name: onbF, last_name: onbL, phone: ph, email: onbE, supabase_id: sbId });
+            sqId = sqResult?.customer?.id;
+          }
           if (sqId) {
             setSqCustId(sqId);
-            // Link Square ID back to Supabase
             if (sbId) await sb.patch("customers", `id=eq.${sbId}`, { square_customer_id: sqId });
           }
           setLogged(true); if (sbId) { loadUserData(sbId); loadCards(sbId); } fire("Welcome, " + onbF + "!");
