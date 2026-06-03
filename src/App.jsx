@@ -555,8 +555,9 @@ export default function BirdieGolfWebsite() {
 
   /* ─── Email notifications ─── */
   const sendEmail = async (type, data) => {
-    // Emails temporarily disabled
-    return;
+    try {
+      await square("email.send", { type, ...data });
+    } catch(e) { console.error("Email failed:", e); }
   };
 
   /* ─── Save booking to Supabase ─── */
@@ -1557,6 +1558,14 @@ export default function BirdieGolfWebsite() {
               setMemberSince(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
               setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
               loadUserData(customerId);
+              sendEmail("membership", {
+                customer_email: profEmail || onbE,
+                customer_name: (onbF + " " + onbL).trim(),
+                plan: t?.n + " Plan",
+                price: "$" + t?.price + "/mo",
+                renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+                enrollment_fee: ef > 0 ? "$" + ef + " (one-time)" : null,
+              });
               fire("Welcome to " + t?.n + "!"); setMemModal(null); setMemTab("current");
             }}>Confirm and Pay ${total.toFixed(2)}</button>
           </div>
@@ -1588,8 +1597,13 @@ export default function BirdieGolfWebsite() {
             <button style={{ ...S.b1, flex: 2, background: "#E03928" }} onClick={async () => {
               await sb.post("membership_history", { customer_id: customerId, action: "cancel", tier, amount: 0, date: dateKey(new Date()) });
               await sb.post("transactions", { customer_id: customerId, description: "Membership Cancellation Scheduled — " + (td?.n || "") + " Plan", date: dateKey(new Date()), amount: 0, payment_label: "System" });
-              // In both cases, member retains access until renewal date (or next renewal if within window)
-              // Tier is NOT changed here — admin/backend handles expiry at renewal date
+              sendEmail("cancellation_membership", {
+                customer_email: profEmail || onbE,
+                customer_name: (onbF + " " + onbL).trim(),
+                tier: td?.n || tier,
+                renewal_date: withinWindow ? nextRdStr : renewDate,
+                within_window: withinWindow,
+              });
               fire(withinWindow ? "Cancellation scheduled. Access continues through " + nextRdStr : "Cancellation scheduled. Access continues through " + renewDate);
               setMemModal(null);
             }}>Schedule Cancellation</button>
@@ -1808,8 +1822,17 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
 
   // Send cancellation email
   const sendCancelEmail = async (refundDesc) => {
-    // Emails temporarily disabled
-    return;
+    const customerEmail = profEmail || onbE;
+    const customerName = (onbF + " " + onbL).trim();
+    sendEmail("cancellation", {
+      customer_email: customerEmail,
+      customer_name: customerName,
+      booking_type: isLesson ? "Lesson" : "Bay Booking",
+      bay: bk.bay ? "Bay " + bk.bay : null,
+      date: bk.date,
+      time: bk.start_time,
+      refund_info: refundDesc,
+    });
   };
 
   /* ── Cancel booking ── */
