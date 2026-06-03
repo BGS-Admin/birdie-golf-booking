@@ -2018,7 +2018,7 @@ const LS = {
   bs: { fontFamily: ff, fontSize: 12, color: "#888", letterSpacing: 0.5, marginTop: 4 },
   label: { fontSize: 11, fontWeight: 700, color: "#888", letterSpacing: 1, marginBottom: 6, display: "block" },
   phRow: { display: "flex", alignItems: "center", gap: 8, background: "#f8f8f6", borderRadius: 12, padding: "0 14px", border: "1px solid #e8e8e6" },
-  phPre: { fontSize: 14, fontWeight: 600, color: "#555", flexShrink: 0 },
+  phPre: { fontSize: 16, fontWeight: 400, color: "#1a1a1a", flexShrink: 0 },
   phIn: { flex: 1, border: "none", background: "transparent", padding: "14px 0", fontSize: 16, fontFamily: ff, color: "#1a1a1a" },
 
   tagline: { fontSize: 16, fontWeight: 600, color: "#072814", textAlign: "center", marginBottom: 10 },
