@@ -321,14 +321,7 @@ const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId }) => {
       try {
         const payments = window.Square.payments(appId, locationId);
         paymentsRef.current = payments;
-        const card = await payments.card({
-          style: {
-            ".input-container": { borderRadius: "10px", borderColor: "#e0ddd6" },
-            ".input-container.is-focus": { borderColor: "#072814" },
-            input: { fontFamily: "DM Sans, sans-serif", fontSize: "14px", color: "#1a1a1a" },
-            "input::placeholder": { color: "#bbb" },
-          }
-        });
+        const card = await payments.card();
         if (destroyed) { card.destroy(); return; }
         await card.attach(containerRef.current);
         cardRef.current = card;
