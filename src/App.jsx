@@ -96,7 +96,7 @@ const X = {
 /* ─── Business Constants ─── */
 const TIERS = {
   starter:      { n: "Starter",      c: "#C7BCA8", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate"] },
-  early_birdie: { n: "Early Birdie", c: "#00305B", badge: "EBD", price: 150, hrs: 0, enrollmentFee: 50, perks: ["Up to 2 hrs/day Mon–Fri 8am–4pm included", "20% off additional non-peak hours in that window", "Full rate applies outside Mon–Fri 8am–4pm", "Members-only events"] },
+  early_birdie: { n: "Early Birdie", c: "#00305B", badge: "EBD", price: 150, hrs: 0, enrollmentFee: 50, perks: ["Up to 2 hrs/day included · Mon–Fri 8am–4pm", "20% off lessons", "15% off F&B", "10% off retail", "Club storage", "Members-only event invites"] },
   player:       { n: "Player",       c: "#072814", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hrs bay rental/mo", "20% off additional hours", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
   champion:     { n: "Champion",     c: "#000000", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited bay rental (max 2hr/booking)", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
 };
@@ -432,7 +432,7 @@ export default function BirdieGolfWebsite() {
   /* Membership */
   const [tier, setTier] = useState("none");
   const [bayCredits, setBayCredits] = useState(0);
-  const [memTab, setMemTab] = useState("current");
+  const [memTab, setMemTab] = useState(tier && tier !== "none" ? "current" : "memberships");
   const [memModal, setMemModal] = useState(null);
   const [renewDate, setRenewDate] = useState(null);
   const [memberSince, setMemberSince] = useState(null);
@@ -480,7 +480,7 @@ export default function BirdieGolfWebsite() {
   const creditCoach = COACHES.find(c => c.id === creditCoachId);
   const tierData = TIERS[tier] || null;
   const resetBk = () => { setBkStep(0); setBkDate(null); setBkDur(null); setBkTime(null); setBkBay(null); setBkAgree(false); setBkOverridePastRenewal(false); setEbSlotsToday(0); };
-  const hasCard = true; // Card requirement temporarily disabled
+  const hasCard = cards.length > 0;
   const resetLes = () => { setLesStep(0); setLesDate(null); setLesTime(null); setLesCoach(null); setLesAgree(false); };
 
   /* ─── Load data from Supabase on mount ─── */
@@ -730,7 +730,7 @@ export default function BirdieGolfWebsite() {
         }}>{otpSending ? "Sending code…" : "Continue"}</button>
         <div style={LS.footer}>
           <span style={LS.footerText}>45 NE 26th St, Unit C, Miami, FL 33145</span>
-          <span style={LS.footerText}>Mon–Fri 7am–10pm · Sat–Sun 9am–9pm</span>
+          <span style={LS.footerText}>Mon–Fri 8am–10pm · Sat–Sun 9am–9pm</span>
         </div>
       </>
     );
@@ -815,7 +815,9 @@ export default function BirdieGolfWebsite() {
             setSqCustId(sqId);
             if (sbId) await sb.patch("customers", `id=eq.${sbId}`, { square_customer_id: sqId });
           }
-          setLogged(true); if (sbId) { loadUserData(sbId); loadCards(sbId); } fire("Welcome, " + onbF + "!");
+          setLogged(true); if (sbId) { loadUserData(sbId); loadCards(sbId); }
+          fire("Welcome, " + onbF + "! Please add a card to start booking.");
+          setTab("profile"); setAddCard(true);
         }}>Create Account</button>
       </>
     );
@@ -1138,6 +1140,7 @@ export default function BirdieGolfWebsite() {
               <button style={S.b2} onClick={() => setBkStep(0)}>Back</button>
               <button style={{ ...S.b1, flex: 2, opacity: bkAgree ? 1 : 0.4 }} onClick={async () => {
                 if (!bkAgree) return;
+                if (price.total > 0 && cards.length === 0) { fire("Please add a card in your Profile before booking."); setTab("profile"); return; }
                 const durH = bkDur * 0.5;
                 await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: price.total, credits: price.credits, disc: price.disc, isPeak: isPeak(bkDate, bkTime), cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card" });
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? bkDate.toISOString().split("T")[0] : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
@@ -1158,7 +1161,7 @@ export default function BirdieGolfWebsite() {
         <button style={{ ...S.b1, background: "#E03928", maxWidth: 180, fontSize: 13, padding: "10px 14px" }} onClick={() => setTab("profile")}>Add Card</button>
       </div>}
       {tier === "champion" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#124A2B" }}>Unlimited · Max 2hrs/booking</span></div>}
-      {tier === "early_birdie" && <div style={{ ...S.creditBanner, borderColor: "rgba(7,40,20,0.2)", background: "rgba(7,40,20,0.03)" }}><span style={{ fontSize: 13, fontWeight: 600, color: "#072814" }}>Unlimited Mon-Fri 7am-4pm · Full rate outside window</span></div>}
+      {tier === "early_birdie" && <div style={{ ...S.creditBanner, borderColor: "rgba(7,40,20,0.2)", background: "rgba(7,40,20,0.03)" }}><span style={{ fontSize: 13, fontWeight: 600, color: "#072814" }}>Unlimited Mon–Fri 8am–4pm · Full rate outside window</span></div>}
       {tier === "player" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#072814" }}>{bayCredits > 0 ? bayCredits + " hrs of credits remaining this cycle" : "No bay credits remaining this cycle"}</span></div>}
 
       {hasCard && <><h4 style={S.stepH}>Select Date</h4>
@@ -1244,11 +1247,19 @@ export default function BirdieGolfWebsite() {
           {price.tax > 0 && <p style={{ fontSize: 11, color: "#888", marginTop: 2 }}>Includes ${price.tax.toFixed(2)} tax (7%)</p>}
         </div>;
       })()}
-      {bkDate && bkDur && bkTime && bkBay && <button style={{ ...S.b1, marginTop: 14 }} onClick={() => {
+      {bkDate && bkDur && bkTime && bkBay && <button style={{ ...S.b1, marginTop: 14 }} onClick={async () => {
         const now = new Date();
         const isToday = bkDate && isSameLocalDay(bkDate, now);
         const currentH = now.getHours() + now.getMinutes() / 60;
         if (isToday && bkTime && toH(bkTime) <= currentH) { fire("That time slot has passed — please select a new time."); setBkTime(null); setBkBay(null); return; }
+        // Block second same-day credit booking — must pay by card
+        const { eTier } = effectiveTierOn(bkDate);
+        const usesCredits = eTier === "early_birdie" || eTier === "player" || eTier === "champion";
+        if (usesCredits) {
+          const dateStr = dateKey(bkDate);
+          const sameDayCreditBks = allBookings.filter(b => b.date === dateStr && b.type === "bay" && b.status === "confirmed" && (b.credits_used > 0 || eTier === "champion"));
+          if (sameDayCreditBks.length > 0 && cards.length === 0) { fire("Add a card to make additional same-day bookings."); setTab("profile"); return; }
+        }
         setBkStep(1);
       }}>Continue to Confirm</button>}
     </>;
@@ -1359,14 +1370,23 @@ export default function BirdieGolfWebsite() {
         {lesDate && lesTime && lesCoach && (() => {
           const coach = COACHES.find(c => c.id === lesCoach), lp = lessonPrice(tier, totL > 0, creditCoachId, lesCoach);
           return <div style={{ ...S.pricePreview, borderColor: "rgba(0,48,91,0.2)", background: "#00305B08", marginTop: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><p style={{ fontSize: 13, fontWeight: 600 }}>{coach?.n} · 1 hr</p><p style={{ fontSize: 11, color: "#888" }}>Bay {autoAssignBay(lesDate, lesTime, bayBlocks, allBookings, hoursConfig)}</p></div>
-            <span style={{ fontSize: 16, fontWeight: 700, color: lp.credit ? "#072814" : "#00305B" }}>{lp.label}</span></div></div>;
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div><p style={{ fontSize: 13, fontWeight: 600 }}>{coach?.n} · 1 hr</p><p style={{ fontSize: 11, color: "#888" }}>Bay {autoAssignBay(lesDate, lesTime, bayBlocks, allBookings, hoursConfig)}</p></div>
+              <div style={{ textAlign: "right" }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: lp.credit ? "#072814" : "#00305B" }}>{lp.label}</span>
+                {(!tier || tier === "none") && !lp.credit && <p style={{ fontSize: 10, color: "#3AE58D", marginTop: 2, fontWeight: 600 }}>Members pay $120 · Join to save</p>}
+              </div>
+            </div></div>;
         })()}
-        {lesDate && lesTime && lesCoach && <button style={{ ...S.b1, marginTop: 12, background: "#00305B" }} onClick={() => {
+        {lesDate && lesTime && lesCoach && <button style={{ ...S.b1, marginTop: 12, background: "#00305B" }} onClick={async () => {
           const now = new Date();
           const isToday = lesDate && isSameLocalDay(lesDate, now);
           const currentH = now.getHours() + now.getMinutes() / 60;
           if (isToday && lesTime && toH(lesTime) <= currentH) { fire("That time slot has passed — please select a new time."); setLesTime(null); setLesCoach(null); return; }
+          // Block same-day duplicate lessons
+          const dateStr = dateKey(lesDate);
+          const existingLessons = allBookings.filter(b => b.date === dateStr && b.type === "lesson" && b.status === "confirmed" && b.start_time === lesTime);
+          if (existingLessons.length > 0) { fire("You already have a lesson booked at this time today."); return; }
           setLesStep(1);
         }}>Continue to Confirm</button>}
       </>}
@@ -1385,7 +1405,7 @@ export default function BirdieGolfWebsite() {
         </> : <>
           {!selPkg ? <>
             <h4 style={S.stepH}>Select a Package</h4><p style={{ fontSize: 12, color: "#888", marginBottom: 14 }}>Purchase a lesson package to save on hourly rates.</p>
-            {(() => { const isMem = tier && tier !== "none"; return [{ name: "3-Hour Package", credits: 3, price: isMem ? 300 : 360 }, { name: "5-Hour Package", credits: 5, price: isMem ? 400 : 500 }].map(p =>
+            {(() => { const isMem = tier && tier !== "none"; return [{ name: "3-Hour Package", credits: 3, price: isMem ? 300 : 360, months: 2 }, { name: "5-Hour Package", credits: 5, price: isMem ? 400 : 500, months: 3 }].map(p =>
               <button key={p.name} style={{ ...S.pkgCard, cursor: "pointer", textAlign: "left", width: "100%" }} onClick={() => setSelPkg(p)}>
                 <div><p style={{ fontSize: 15, fontWeight: 700 }}>{p.name}</p><p style={{ fontSize: 12, color: "#888" }}>{p.credits} lesson credits</p></div>
                 <p style={{ fontSize: 18, fontWeight: 700, marginTop: 10 }}>${p.price}</p></button>); })()}
@@ -1394,9 +1414,14 @@ export default function BirdieGolfWebsite() {
             <h4 style={S.stepH}>Select Instructor</h4><div style={{ display: "flex", gap: 10 }}>{COACHES.map(c => <CoachCard key={c.id} c={c} sel={pkgCoach === c.id} locked={false} onClick={() => setPkgCoach(c.id)} />)}</div>
           </> : (() => { const coach = COACHES.find(c => c.id === pkgCoach); return <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><button style={S.bk} onClick={() => setPkgCoach(null)}>{X.chevL(18)}</button><div><p style={{ fontSize: 15, fontWeight: 700 }}>{selPkg.name}</p><p style={{ fontSize: 12, color: "#888" }}>{selPkg.credits} credits · {coach?.n}</p></div></div>
-            <div style={S.confCard}>{[["Package", selPkg.name], ["Credits", selPkg.credits + " lessons"], ["Instructor", coach?.n]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}<div style={S.confDiv} /><div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700 }}>${selPkg.price}</span></div></div>
+            <div style={S.confCard}>
+                {[["Package", selPkg.name], ["Credits", selPkg.credits + " lessons"], ["Instructor", coach?.n]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
+                <div style={S.confDiv} />
+                <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700 }}>${selPkg.price}</span></div>
+                <p style={{ fontSize: 11, color: "#888", marginTop: 10, lineHeight: 1.5 }}>⏱ Expires {selPkg.months} month{selPkg.months > 1 ? "s" : ""} from purchase date.</p>
+              </div>
             <button style={{ ...S.b1, background: "#00305B", marginTop: 14 }} onClick={async () => {
-              const today = new Date(), expDate = new Date(today); expDate.setMonth(expDate.getMonth() + 3);
+              const today = new Date(), expDate = new Date(today); expDate.setMonth(expDate.getMonth() + (selPkg.months || 3));
               const fmtShort = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
               const existingPkg = await sb.get("lesson_packages", `customer_id=eq.${customerId}&status=eq.active&select=id`);
               if (existingPkg?.length > 0) { fire("You already have an active lesson package. Use your remaining credits first."); setSelPkg(null); setPkgCoach(null); return; }
@@ -1440,13 +1465,13 @@ export default function BirdieGolfWebsite() {
     const td = TIERS[tier];
     return <>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 14 }}>Membership</h2>
-      <div style={S.tabs}>{["current", "memberships"].map(t => <button key={t} style={{ ...S.tabBtn, ...(memTab === t ? S.tabSel : {}) }} onClick={() => setMemTab(t)}>{t === "memberships" ? "Browse" : "Current"}</button>)}</div>
+      <div style={S.tabs}>{["current", "memberships"].map(t => <button key={t} style={{ ...S.tabBtn, ...(memTab === t ? S.tabSel : {}) }} onClick={() => setMemTab(t)}>{t === "memberships" ? "Types" : "Current"}</button>)}</div>
 
       {memTab === "current" && (!td || tier === "none") && (
         <div style={S.emptyCard}>
           <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No active membership</p>
           <p style={{ fontSize: 12, color: "#888", marginBottom: 14 }}>Browse our membership plans to unlock bay credits, discounts, and more.</p>
-          <button style={{ ...S.b1, maxWidth: 200, margin: "0 auto" }} onClick={() => setMemTab("memberships")}>Browse Plans</button>
+          <button style={{ ...S.b1, maxWidth: 200, margin: "0 auto" }} onClick={() => setMemTab("memberships")}>View Plans</button>
         </div>
       )}
 
@@ -1468,7 +1493,7 @@ export default function BirdieGolfWebsite() {
         </div>
         <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <div style={S.detailCard}><h4 style={S.detailH}>Plan Details</h4>
-            {[["Plan", td.n], ["Monthly Rate", "$" + td.price], ["Member Since", memberSince], ["Next Renewal", renewDate], ["Bay Hours", tier === "champion" ? "Unlimited (max 2hr/booking)" : tier === "early_birdie" ? "Unlimited Mon-Fri 7am-4pm" : bayCredits + " of 8 remaining"]].map(([l, v]) => <div key={l} style={S.detailRow}><span style={S.detailL}>{l}</span><span style={S.detailV}>{v}</span></div>)}</div>
+            {[["Plan", td.n], ["Monthly Rate", "$" + td.price], ["Member Since", memberSince], ["Next Renewal", renewDate], ["Bay Hours", tier === "champion" ? "Unlimited (max 2hr/booking)" : tier === "early_birdie" ? "Unlimited Mon–Fri 8am–4pm" : bayCredits + " of 8 remaining"]].map(([l, v]) => <div key={l} style={S.detailRow}><span style={S.detailL}>{l}</span><span style={S.detailV}>{v}</span></div>)}</div>
           <div style={S.detailCard}><h4 style={S.detailH}>Perks</h4>
             {td.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}><span style={{ color: "#072814" }}>{X.chk(16)}</span><span style={{ fontSize: 13 }}>{p}</span></div>)}</div>
         </div>
@@ -1478,18 +1503,29 @@ export default function BirdieGolfWebsite() {
       </>}
 
 
-      {memTab === "memberships" && <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
-        {Object.entries(TIERS).map(([k, t]) => <div key={k} style={{ ...S.pkgCard, borderLeft: `3px solid ${t.c}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><span style={{ background: t.c, color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontFamily: ff, letterSpacing: 1 }}>{t.badge}</span><span style={{ fontSize: 16, fontWeight: 700 }}>{t.n}</span></div>
-          <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>${t.price}<span style={{ fontSize: 13, color: "#888", fontWeight: 400 }}>/mo</span></p>
-          {t.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}><span style={{ color: t.c, flexShrink: 0 }}>{X.chk(14)}</span><span style={{ fontSize: 12 }}>{p}</span></div>)}
-          {t.enrollmentFee && enrollmentFeeEnabled && <p style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>One-time ${t.enrollmentFee} enrollment fee at sign-up.</p>}
-          {k === "early_birdie" && <p style={{ fontSize: 11, fontWeight: 700, color: "#072814", marginTop: 4 }}>Mon-Fri 7am-4pm only</p>}
-          <div style={{ marginTop: 14 }}>
-            {k === tier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Current Plan</span>
-            : k === pendingTier ? <span style={{ fontSize: 13, fontWeight: 600, color: t.c }}>Scheduled on {renewDate}</span>
-            : hasCard ? <button style={{ ...S.b1, background: pendingTier ? "#aaa" : t.c }} disabled={!!pendingTier} onClick={() => !pendingTier && setMemModal({ type: (!tier || tier === "none") ? "join" : "switch", to: k })}>{(!tier || tier === "none") ? "Get Started" : Object.keys(TIERS).indexOf(k) > Object.keys(TIERS).indexOf(tier) ? "Upgrade" : "Switch"}</button>
-            : <button style={{ ...S.b1, background: "#ccc" }} onClick={() => setTab("profile")}>Add Card First</button>}
+      {memTab === "memberships" && <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
+        {Object.entries(TIERS).map(([k, t]) => <div key={k} style={{ ...S.pkgCard, borderLeft: `3px solid ${t.c}`, display: "flex", flexDirection: "column" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span style={{ background: t.c, color: k === "starter" ? "#072814" : "#fff", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontFamily: ff, letterSpacing: 1 }}>{t.badge}</span>
+              <span style={{ fontSize: 16, fontWeight: 700 }}>{t.n}</span>
+            </div>
+            <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>${t.price}<span style={{ fontSize: 13, color: "#888", fontWeight: 400 }}>/mo</span></p>
+            <div style={{ borderTop: "0.5px solid #f0ede8", paddingTop: 10, marginBottom: 8 }}>
+              {t.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "flex-start", gap: 7, padding: "4px 0" }}>
+                <span style={{ color: "#3AE58D", flexShrink: 0, marginTop: 1 }}>{X.chk(13)}</span>
+                <span style={{ fontSize: 12, color: "#444", lineHeight: 1.4 }}>{p}</span>
+              </div>)}
+            </div>
+            {t.enrollmentFee && enrollmentFeeEnabled && <p style={{ fontSize: 11, color: "#888", marginTop: 4, lineHeight: 1.5 }}>One-time ${t.enrollmentFee} enrollment fee at sign-up.</p>}
+          </div>
+          <div style={{ marginTop: "auto", paddingTop: 14 }}>
+            {k === tier ? <div style={{ textAlign: "center", padding: "10px 0", fontSize: 13, fontWeight: 600, color: t.c }}>✓ Current Plan</div>
+            : k === pendingTier ? <div style={{ textAlign: "center", padding: "10px 0", fontSize: 12, fontWeight: 600, color: t.c }}>Switching on {renewDate}</div>
+            : cards.length > 0 ? <button style={{ ...S.b1, background: pendingTier ? "#aaa" : t.c, color: k === "starter" ? "#072814" : "#fff" }} disabled={!!pendingTier} onClick={() => !pendingTier && setMemModal({ type: (!tier || tier === "none") ? "join" : "switch", to: k })}>
+                {(!tier || tier === "none") ? "Join" : Object.keys(TIERS).indexOf(k) > Object.keys(TIERS).indexOf(tier) ? "Upgrade" : "Switch"}
+              </button>
+            : <button style={{ ...S.b1, background: "#ccc" }} onClick={() => { setTab("profile"); fire("Please add a card first"); }}>Add Card to Join</button>}
           </div>
         </div>)}
       </div>}
@@ -1525,7 +1561,7 @@ export default function BirdieGolfWebsite() {
           </div>
           {memModal.to === "early_birdie" && <div style={{ background: "rgba(7,40,20,0.04)", border: "1px solid #4A8B6E33", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: "#072814", marginBottom: 4 }}>Time Restriction</p>
-            <p style={{ fontSize: 12, color: "#555", lineHeight: 1.5 }}>Early Birdie credits apply Mon-Fri 7am-4pm only. Bookings outside that window are charged at the full hourly rate + tax.</p>
+            <p style={{ fontSize: 12, color: "#555", lineHeight: 1.5 }}>Early Birdie credits apply Mon–Fri 8am–4pm only. Bookings outside that window are charged at the full hourly rate + tax.</p>
           </div>}
           <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}. Renews monthly at ${t?.price}/mo + tax.</p>
           <div style={{ display: "flex", gap: 10 }}>
@@ -1702,7 +1738,7 @@ export default function BirdieGolfWebsite() {
               const code = Math.floor(100000 + Math.random() * 900000).toString();
               // Send verification code via Resend
               try {
-                await fetch(SQUARE_FN_URL, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}` },
+                await fetch(SQUARE_FN_URL, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}`, "x-bgs-key": BGS_API_KEY },
                   body: JSON.stringify({ action: "email.send", type: "verification_code", customer_name: onbF, customer_email: editModal.val, code }) });
               } catch(e) { console.warn("Verification email failed", e); }
               setEditModal(p => ({ ...p, step: "otp", code, sending: false }));
