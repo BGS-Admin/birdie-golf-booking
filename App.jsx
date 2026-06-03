@@ -315,6 +315,10 @@ const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId }) => {
 
       if (destroyed) return;
 
+      // Wait for container to be in DOM and visible
+      await new Promise(resolve => setTimeout(resolve, 300));
+      if (destroyed || !containerRef.current) return;
+
       try {
         const payments = window.Square.payments(appId, locationId);
         paymentsRef.current = payments;
@@ -327,12 +331,13 @@ const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId }) => {
           }
         });
         if (destroyed) { card.destroy(); return; }
+        if (!containerRef.current) { card.destroy(); return; }
         await card.attach(containerRef.current);
         cardRef.current = card;
         setLoading(false);
       } catch (e) {
         console.error("Square card form error:", e);
-        if (!destroyed) setErr("Failed to load card form: " + (e?.message || String(e)));
+        if (!destroyed) setErr("Failed to load card form. Please refresh and try again.");
         setLoading(false);
       }
     };
@@ -374,7 +379,10 @@ const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId }) => {
     <div style={{ marginTop: 12 }}>
       {loading && <p style={{ fontSize: 13, color: "#888", textAlign: "center", padding: "20px 0" }}>Loading secure card form…</p>}
       {err && <p style={{ fontSize: 12, color: "#E03928", marginBottom: 8 }}>{err}</p>}
-      <div ref={containerRef} style={{ display: loading ? "none" : "block", marginBottom: 12 }} />
+      <div style={{ position: "relative", marginBottom: 12 }}>
+        <div ref={containerRef} style={{ minHeight: 60 }} />
+        {loading && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f8f6", borderRadius: 10 }}><span style={{ fontSize: 12, color: "#888" }}>Loading card form…</span></div>}
+      </div>
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <button style={{ background: "#f0f0ee", color: "#1a1a1a", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 1 }} onClick={onCancel}>Cancel</button>
         <button style={{ background: "#072814", color: "#fff", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 2, opacity: loading || saving ? 0.5 : 1 }} disabled={loading || saving} onClick={handleSave}>{saving ? "Saving…" : "Save Card"}</button>
