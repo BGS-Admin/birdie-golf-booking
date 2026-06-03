@@ -1,0 +1,13 @@
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://web.squarecdn.com https://js.squareup.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://web.squarecdn.com; font-src 'self' https://fonts.gstatic.com https://web.squarecdn.com data:; img-src 'self' data: https:; connect-src 'self' https://*.squareup.com https://*.supabase.co https://api.resend.com; frame-src https://web.squarecdn.com https://js.squareup.com;"
+        }
+      ]
+    }
+  ]
+}
