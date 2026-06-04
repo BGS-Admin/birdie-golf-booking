@@ -95,10 +95,10 @@ const X = {
 
 /* ─── Business Constants ─── */
 const TIERS = {
-  starter:      { n: "Starter",      c: "#C7BCA8", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate"] },
-  early_birdie: { n: "Early Birdie", c: "#2D6A4F", badge: "EBD", price: 150, hrs: 0, enrollmentFee: 50, perks: ["Up to 2 hrs/day included · Mon–Fri 8am–4pm", "20% off lessons", "15% off F&B", "10% off retail", "Club storage", "Members-only event invites"] },
-  player:       { n: "Player",       c: "#072814", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hrs bay rental/mo", "20% off additional hours", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
-  champion:     { n: "Champion",     c: "#000000", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited bay rental (max 2hr/booking)", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
+  starter:      { n: "Starter",      c: "#C7BCA8", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate", "Club storage", "Members-only invites"] },
+  early_birdie: { n: "Early Birdie", c: "#2D6A4F", badge: "EBD", price: 150, hrs: 0, enrollmentFee: 50, perks: ["Up to 2 non-peak hours per day", "20% off additional non-peak hours beyond 2 hrs", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
+  player:       { n: "Player",       c: "#072814", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hours / month", "20% off additional hours", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
+  champion:     { n: "Champion",     c: "#000000", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited hours", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
 };
 
 /* Default: coaches available all operating hours. Admin updates override via Supabase. */
