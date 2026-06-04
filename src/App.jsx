@@ -546,7 +546,7 @@ export default function BirdieGolfWebsite() {
   const loadCards = useCallback(async (cid) => {
     if (!cid) return;
     const saved = await sb.get("payment_methods", `customer_id=eq.${cid}&select=*&order=created_at.asc`);
-    if (saved?.length) setCards(saved.map(c => ({ id: c.id, brand: c.brand, last4: c.last4, exp: c.exp, square_card_id: c.square_card_id })));
+    if (saved?.length) setCards(saved.map(c => ({ id: c.id, brand: c.brand, last4: c.last4, exp: c.exp })));
   }, []);
 
   /* ─── Email notifications ─── */
@@ -1405,6 +1405,7 @@ export default function BirdieGolfWebsite() {
               <button key={p.name} style={{ ...S.pkgCard, cursor: "pointer", textAlign: "left", width: "100%" }} onClick={() => setSelPkg(p)}>
                 <div><p style={{ fontSize: 15, fontWeight: 700 }}>{p.name}</p><p style={{ fontSize: 12, color: "#888" }}>{p.credits} lesson credits</p></div>
                 <p style={{ fontSize: 18, fontWeight: 700, marginTop: 10 }}>${p.price}</p></button>); })()}
+            {!(tier && tier !== "none") && <p style={{ fontSize: 12, color: "#888", marginTop: 12, lineHeight: 1.6 }}>💡 Members pay $300 and $400 for these packages. <span style={{ color: "#072814", fontWeight: 600 }}>Join a membership</span> to unlock member pricing.</p>}
           </> : !pkgCoach ? <>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><button style={S.bk} onClick={() => { setSelPkg(null); setPkgCoach(null); }}>{X.chevL(18)}</button><div><p style={{ fontSize: 15, fontWeight: 700 }}>{selPkg.name}</p><p style={{ fontSize: 12, color: "#888" }}>{selPkg.credits} credits · ${selPkg.price}</p></div></div>
             <h4 style={S.stepH}>Select Instructor</h4><div style={{ display: "flex", gap: 10 }}>{COACHES.map(c => <CoachCard key={c.id} c={c} sel={pkgCoach === c.id} locked={false} onClick={() => setPkgCoach(c.id)} />)}</div>
