@@ -95,10 +95,10 @@ const X = {
 
 /* ─── Business Constants ─── */
 const TIERS = {
-  starter:      { n: "Starter",      c: "#C7BCA8", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate", "Club storage", "Members-only invites"] },
-  early_birdie: { n: "Early Birdie", c: "#2D6A4F", badge: "EBD", price: 150, hrs: 0, enrollmentFee: 50, perks: ["Up to 2 non-peak hours per day", "20% off additional non-peak hours beyond 2 hrs", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
-  player:       { n: "Player",       c: "#072814", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hours / month", "20% off additional hours", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
-  champion:     { n: "Champion",     c: "#000000", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited hours", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
+  starter:      { n: "Starter",      c: "#C7BCA8", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate"] },
+  early_birdie: { n: "Early Birdie", c: "#00305B", badge: "EBD", price: 150, hrs: 0, enrollmentFee: 50, perks: ["Up to 2 hrs/day included · Mon–Fri 8am–4pm", "20% off lessons", "15% off F&B", "10% off retail", "Club storage", "Members-only event invites"] },
+  player:       { n: "Player",       c: "#072814", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hrs bay rental/mo", "20% off additional hours", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
+  champion:     { n: "Champion",     c: "#000000", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited bay rental (max 2hr/booking)", "15% off F&B", "10% off retail", "Club storage", "Members-only events"] },
 };
 
 /* Default: coaches available all operating hours. Admin updates override via Supabase. */
@@ -315,18 +315,28 @@ const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId }) => {
 
       if (destroyed) return;
 
+      // Wait for container to be in DOM and visible
       await new Promise(resolve => setTimeout(resolve, 300));
       if (destroyed || !containerRef.current) return;
 
       try {
         const payments = window.Square.payments(appId, locationId);
         paymentsRef.current = payments;
-        const card = await payments.card();
+        const card = await payments.card({
+          style: {
+            ".input-container": { borderRadius: "10px", borderColor: "#e0ddd6" },
+            ".input-container.is-focus": { borderColor: "#072814" },
+            input: { fontFamily: "DM Sans, sans-serif", fontSize: "14px", color: "#1a1a1a" },
+            "input::placeholder": { color: "#bbb" },
+          }
+        });
         if (destroyed) { card.destroy(); return; }
+        if (!containerRef.current) { card.destroy(); return; }
         await card.attach(containerRef.current);
         cardRef.current = card;
         setLoading(false);
       } catch (e) {
+        console.error("Square card form error:", e);
         if (!destroyed) setErr("Failed to load card form. Please refresh and try again.");
         setLoading(false);
       }
@@ -369,7 +379,10 @@ const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId }) => {
     <div style={{ marginTop: 12 }}>
       {loading && <p style={{ fontSize: 13, color: "#888", textAlign: "center", padding: "20px 0" }}>Loading secure card form…</p>}
       {err && <p style={{ fontSize: 12, color: "#E03928", marginBottom: 8 }}>{err}</p>}
-      <div style={{ position: "relative", marginBottom: 12 }}><div ref={containerRef} style={{ minHeight: 60 }} />{loading && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f8f6", borderRadius: 10 }}><span style={{ fontSize: 12, color: "#888" }}>Loading card form…</span></div>}</div>
+      <div style={{ position: "relative", marginBottom: 12 }}>
+        <div ref={containerRef} style={{ minHeight: 60 }} />
+        {loading && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f8f6", borderRadius: 10 }}><span style={{ fontSize: 12, color: "#888" }}>Loading card form…</span></div>}
+      </div>
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <button style={{ background: "#f0f0ee", color: "#1a1a1a", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 1 }} onClick={onCancel}>Cancel</button>
         <button style={{ background: "#072814", color: "#fff", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 2, opacity: loading || saving ? 0.5 : 1 }} disabled={loading || saving} onClick={handleSave}>{saving ? "Saving…" : "Save Card"}</button>
@@ -604,7 +617,7 @@ export default function BirdieGolfWebsite() {
     // Save transaction to Supabase (fire and forget)
     sb.post("transactions", {
       customer_id: customerId, description: "Bay Booking · Bay " + bookingData.bay,
-      date: dateKey(new Date()), amount: bookingData.total, payment_label: bookingData.cardLabel || "Card",
+      date: dateKey(bookingData.date), amount: bookingData.total, payment_label: bookingData.cardLabel || "Card",
       square_payment_id: sqPaymentId,
     });
     // Always update local display
@@ -665,7 +678,7 @@ export default function BirdieGolfWebsite() {
     // Save transaction to Supabase (fire and forget)
     sb.post("transactions", {
       customer_id: customerId, description: "Lesson · " + bookingData.coachName,
-      date: dateKey(new Date()), amount: bookingData.total, payment_label: bookingData.credit ? "Credit" : (bookingData.cardLabel || "Card"),
+      date: dateKey(bookingData.date), amount: bookingData.total, payment_label: bookingData.credit ? "Credit" : (bookingData.cardLabel || "Card"),
     });
     // Always update local display
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -979,20 +992,20 @@ export default function BirdieGolfWebsite() {
               </div>
               <div style={{ marginTop: "auto", paddingTop: 12 }}>
                 {tier === "player" && <p style={{ fontSize: 11, color: "#3AE58D", fontWeight: 600 }}>{bayCredits} out of 8 bay credits remaining</p>}
-                {tier === "early_birdie" && <p style={{ fontSize: 11, color: "#95D5B2", fontWeight: 600 }}>Up to 2 hrs/day · Mon–Fri 8am–4pm</p>}
+                {tier === "early_birdie" && <p style={{ fontSize: 11, color: "#C7BCA8", fontWeight: 600 }}>Up to 2 hrs/day · Mon–Fri 8am–4pm</p>}
                 {tier === "champion" && <p style={{ fontSize: 11, color: "#3AE58D", fontWeight: 600 }}>Unlimited credits</p>}
                 {tier === "starter" && <p style={{ fontSize: 11, color: "#072814", fontWeight: 600 }}>Pay-as-you-go</p>}
               </div>
             </div>
           )}
           {totL > 0 && creditCoach && (
-            <div style={{ background: "rgba(45,106,79,0.08)", border: "0.5px solid rgba(45,106,79,0.2)", borderRadius: 12, padding: "18px", display: "flex", flexDirection: "column" }}>
+            <div style={{ background: "rgba(0,48,91,0.08)", border: "0.5px solid rgba(0,48,91,0.2)", borderRadius: 12, padding: "18px", display: "flex", flexDirection: "column" }}>
               <div>
-                <p style={{ fontSize: 15, fontWeight: 700, color: "#2D6A4F" }}>{creditPkg}</p>
+                <p style={{ fontSize: 15, fontWeight: 700, color: "#00305B" }}>{creditPkg}</p>
                 <p style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{creditCoach.n} · Expires {creditExp}</p>
               </div>
               <div style={{ marginTop: "auto", paddingTop: 12 }}>
-                <p style={{ fontSize: 11, color: "#2D6A4F", fontWeight: 600 }}>{totL} out of {maxL} lesson credits remaining</p>
+                <p style={{ fontSize: 11, color: "#00305B", fontWeight: 600 }}>{totL} out of {maxL} lesson credits remaining</p>
               </div>
             </div>
           )}
@@ -1405,7 +1418,6 @@ export default function BirdieGolfWebsite() {
               <button key={p.name} style={{ ...S.pkgCard, cursor: "pointer", textAlign: "left", width: "100%" }} onClick={() => setSelPkg(p)}>
                 <div><p style={{ fontSize: 15, fontWeight: 700 }}>{p.name}</p><p style={{ fontSize: 12, color: "#888" }}>{p.credits} lesson credits</p></div>
                 <p style={{ fontSize: 18, fontWeight: 700, marginTop: 10 }}>${p.price}</p></button>); })()}
-            {!(tier && tier !== "none") && <p style={{ fontSize: 12, color: "#888", marginTop: 12, lineHeight: 1.6 }}>Members pay $300 and $400 for these packages. <span style={{ color: "#072814", fontWeight: 600 }}>Join a membership</span> to unlock member pricing.</p>}
           </> : !pkgCoach ? <>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><button style={S.bk} onClick={() => { setSelPkg(null); setPkgCoach(null); }}>{X.chevL(18)}</button><div><p style={{ fontSize: 15, fontWeight: 700 }}>{selPkg.name}</p><p style={{ fontSize: 12, color: "#888" }}>{selPkg.credits} credits · ${selPkg.price}</p></div></div>
             <h4 style={S.stepH}>Select Instructor</h4><div style={{ display: "flex", gap: 10 }}>{COACHES.map(c => <CoachCard key={c.id} c={c} sel={pkgCoach === c.id} locked={false} onClick={() => setPkgCoach(c.id)} />)}</div>
@@ -2105,7 +2117,7 @@ const S = {
 
   /* Quick actions */
   qGrid: { display: "grid", gap: 8, marginBottom: 24 },
-  qBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 4px", background: "#fff", border: "0.5px solid #e8e4dc", borderRadius: 12, cursor: "pointer", fontFamily: ff },
+  qBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 4px", background: "#C7BCA8", border: "none", borderRadius: 12, cursor: "pointer", fontFamily: ff },
   qIc: { width: 40, height: 40, borderRadius: 8, background: "#072814", color: "#3AE58D", display: "flex", alignItems: "center", justifyContent: "center" },
   qL: { fontSize: 11, fontWeight: 600, color: "#072814" },
 
