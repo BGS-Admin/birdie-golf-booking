@@ -485,12 +485,20 @@ export default function BirdieGolfWebsite() {
   const [transactions, setTransactions] = useState([]);
   const [memHistory] = useState([]);
 
+  /* Promo codes */
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promoInput, setPromoInput] = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoApplied, setPromoApplied] = useState(null);
+  // promoApplied shape: { code, discount_id, discount_type, percentage, amount_cents, label, savings }
+
   const days14 = gen14();
   const creditCoach = COACHES.find(c => c.id === creditCoachId);
   const tierData = TIERS[tier] || null;
-  const resetBk = () => { setBkStep(0); setBkDate(null); setBkDur(null); setBkTime(null); setBkBay(null); setBkAgree(false); setBkOverridePastRenewal(false); setEbSlotsToday(0); };
+  const resetPromo = () => { setPromoOpen(false); setPromoInput(""); setPromoLoading(false); setPromoApplied(null); };
+  const resetBk = () => { setBkStep(0); setBkDate(null); setBkDur(null); setBkTime(null); setBkBay(null); setBkAgree(false); setBkOverridePastRenewal(false); setEbSlotsToday(0); resetPromo(); };
   const hasCard = cards.length > 0;
-  const resetLes = () => { setLesStep(0); setLesDate(null); setLesTime(null); setLesCoach(null); setLesAgree(false); };
+  const resetLes = () => { setLesStep(0); setLesDate(null); setLesTime(null); setLesCoach(null); setLesAgree(false); resetPromo(); };
 
   /* ─── Load data from Supabase on mount ─── */
   useEffect(() => {
@@ -620,6 +628,16 @@ export default function BirdieGolfWebsite() {
       date: dateKey(bookingData.date), amount: bookingData.total, payment_label: bookingData.cardLabel || "Card",
       square_payment_id: sqPaymentId,
     });
+    // Record promo redemption if one was applied
+    if (bookingData.promoDiscountId && bookingData.promoSavings > 0 && customerId) {
+      sb.post("promo_redemptions", {
+        customer_id: customerId,
+        discount_id: bookingData.promoDiscountId,
+        discount_name: bookingData.promoCode || "",
+        amount_saved: bookingData.promoSavings,
+        booking_type: "bay",
+      });
+    }
     // Always update local display
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     setTransactions(p => [{ desc: "Bay Booking · Bay " + bookingData.bay, date: today, method: bookingData.cardLabel || "Card", amt: "$" + bookingData.total.toFixed(2) }, ...p]);
@@ -680,6 +698,16 @@ export default function BirdieGolfWebsite() {
       customer_id: customerId, description: "Lesson · " + bookingData.coachName,
       date: dateKey(bookingData.date), amount: bookingData.total, payment_label: bookingData.credit ? "Credit" : (bookingData.cardLabel || "Card"),
     });
+    // Record promo redemption if one was applied
+    if (bookingData.promoDiscountId && bookingData.promoSavings > 0 && customerId) {
+      sb.post("promo_redemptions", {
+        customer_id: customerId,
+        discount_id: bookingData.promoDiscountId,
+        discount_name: bookingData.promoCode || "",
+        amount_saved: bookingData.promoSavings,
+        booking_type: "lesson",
+      });
+    }
     // Always update local display
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     setTransactions(p => [{ desc: "Lesson · " + bookingData.coachName, date: today, method: bookingData.credit ? "Credit" : (bookingData.cardLabel || "Card"), amt: "$" + bookingData.total.toFixed(2) }, ...p]);
@@ -1131,12 +1159,55 @@ export default function BirdieGolfWebsite() {
               {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{eTier === "early_birdie" ? "Included (EB)" : "Credits Used"}</span><span style={{ ...S.confV, color: "#072814" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
               {price.disc > 0 && <div style={S.confRow}><span style={S.confL}>Member Discount</span><span style={{ ...S.confV, color: "#072814" }}>-${price.disc.toFixed(2)}</span></div>}
               {price.tax > 0 && <div style={S.confRow}><span style={S.confL}>Tax (7%)</span><span style={S.confV}>${price.tax.toFixed(2)}</span></div>}
+              {promoApplied && <div style={S.confRow}><span style={S.confL}>Promo ({promoApplied.code})</span><span style={{ ...S.confV, color: "#3AE58D" }}>-${promoApplied.savings.toFixed(2)}</span></div>}
               {eTier !== tier && <div style={{ background: "#FFF5E5", border: "1px solid #E8890C33", borderRadius: 8, padding: "8px 12px", marginBottom: 8 }}>
                 <p style={{ fontSize: 11, color: "#E8890C", fontWeight: 600 }}>Priced as {TIERS[eTier]?.n} — your new plan starting {renewDate}</p>
               </div>}
               <div style={S.confDiv} />
-              <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700 }}>${price.total.toFixed(2)}</span></div>
+              <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700 }}>${(Math.max(0, price.total - (promoApplied?.savings || 0))).toFixed(2)}</span></div>
             </div>
+            {/* Promo code box */}
+            {(() => {
+              const applyPromo = async () => {
+                const code = promoInput.trim().toUpperCase();
+                if (!code) return;
+                setPromoLoading(true);
+                const res = await square("promo.validate", { code, customer_id: customerId });
+                setPromoLoading(false);
+                if (!res?.valid) {
+                  if (res?.reason === "already_used") fire("You’ve already used this promo code.");
+                  else if (res?.reason === "limit_reached") fire("This promo code is no longer available.");
+                  else fire("Promo code not found. Please check and try again.");
+                  return;
+                }
+                let savings = 0;
+                if (res.discount_type === "FIXED_PERCENTAGE") savings = Math.round(price.total * (res.percentage / 100) * 100) / 100;
+                else savings = Math.min(price.total, (res.amount_cents || 0) / 100);
+                setPromoApplied({ code, discount_id: res.discount_id, discount_type: res.discount_type, percentage: res.percentage, amount_cents: res.amount_cents, label: res.label, savings });
+                setPromoOpen(false);
+              };
+              return (
+                <div style={{ marginTop: 10, marginBottom: 4 }}>
+                  {!promoApplied ? (
+                    !promoOpen ? (
+                      <button style={{ background: "none", border: "none", padding: 0, fontSize: 12, color: "#3AE58D", fontWeight: 600, cursor: "pointer", fontFamily: ff }} onClick={() => setPromoOpen(true)}>Have a promo code?</button>
+                    ) : (
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <input value={promoInput} onChange={e => setPromoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && applyPromo()} placeholder="Enter code" style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13, fontFamily: mono, textTransform: "uppercase", outline: "none" }} autoFocus />
+                        <button style={{ ...S.b1, padding: "9px 16px", fontSize: 13, minWidth: 72, opacity: promoLoading ? 0.6 : 1 }} onClick={applyPromo} disabled={promoLoading}>{promoLoading ? "…" : "Apply"}</button>
+                        <button style={{ background: "none", border: "none", fontSize: 18, color: "#aaa", cursor: "pointer", lineHeight: 1 }} onClick={() => { setPromoOpen(false); setPromoInput(""); }}>×</button>
+                      </div>
+                    )
+                  ) : (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#072814", borderRadius: 20, padding: "5px 12px" }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#3AE58D", fontFamily: mono }}>{promoApplied.code}</span>
+                      <span style={{ fontSize: 12, color: "#3AE58D" }}>· -{promoApplied.label}</span>
+                      <button style={{ background: "none", border: "none", color: "#3AE58D", fontSize: 14, cursor: "pointer", lineHeight: 1, padding: "0 0 0 4px" }} onClick={() => setPromoApplied(null)}>×</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <p style={{ fontSize: 12, color: "#888", marginTop: 12 }}>Up to 4 players per bay. No additional charge.</p>
           </div>
           <div>
@@ -1149,9 +1220,10 @@ export default function BirdieGolfWebsite() {
               <button style={S.b2} onClick={() => setBkStep(0)}>Back</button>
               <button style={{ ...S.b1, flex: 2, opacity: bkAgree ? 1 : 0.4 }} onClick={async () => {
                 if (!bkAgree) return;
-                if (price.total > 0 && cards.length === 0) { fire("Please add a card in your Profile before booking."); setTab("profile"); return; }
+                const bayTotal = Math.max(0, price.total - (promoApplied?.savings || 0));
+                if (bayTotal > 0 && cards.length === 0) { fire("Please add a card in your Profile before booking."); setTab("profile"); return; }
                 const durH = bkDur * 0.5;
-                await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: price.total, credits: price.credits, disc: price.disc, isPeak: isPeak(bkDate, bkTime), cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card" });
+                await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: bayTotal, credits: price.credits, disc: price.disc, isPeak: isPeak(bkDate, bkTime), cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card", promoSavings: promoApplied?.savings || 0, promoDiscountId: promoApplied?.discount_id || null, promoCode: promoApplied?.code || null });
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? bkDate.toISOString().split("T")[0] : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
                 if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
                 fire("Bay booked!"); resetBk(); setTab("home");
@@ -1289,8 +1361,56 @@ export default function BirdieGolfWebsite() {
             <div style={S.confCard}>
               {[["Coach", coach?.n], ["Date", fmtDateLong(lesDate)], ["Time", lesTime + " · 1 hr"], ["Bay", "Bay " + bayAssigned]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
               <div style={S.confDiv} />
-              <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700, color: lp.credit ? "#072814" : "#1a1a1a" }}>{lp.label}</span></div>
+              {(() => {
+                const lesPromoSavings = (!lp.credit && promoApplied) ? promoApplied.savings : 0;
+                const lesAdjTotal = Math.max(0, lp.total - lesPromoSavings);
+                return <>
+                  {promoApplied && !lp.credit && <div style={S.confRow}><span style={S.confL}>Promo ({promoApplied.code})</span><span style={{ ...S.confV, color: "#3AE58D" }}>-${lesPromoSavings.toFixed(2)}</span></div>}
+                  <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700, color: lp.credit ? "#072814" : "#1a1a1a" }}>{lp.credit ? lp.label : "$" + lesAdjTotal.toFixed(2)}</span></div>
+                </>;
+              })()}
             </div>
+            {!lp.credit && (() => {
+              const applyPromoLes = async () => {
+                const code = promoInput.trim().toUpperCase();
+                if (!code) return;
+                setPromoLoading(true);
+                const res = await square("promo.validate", { code, customer_id: customerId });
+                setPromoLoading(false);
+                if (!res?.valid) {
+                  if (res?.reason === "already_used") fire("You’ve already used this promo code.");
+                  else if (res?.reason === "limit_reached") fire("This promo code is no longer available.");
+                  else fire("Promo code not found. Please check and try again.");
+                  return;
+                }
+                let savings = 0;
+                if (res.discount_type === "FIXED_PERCENTAGE") savings = Math.round(lp.total * (res.percentage / 100) * 100) / 100;
+                else savings = Math.min(lp.total, (res.amount_cents || 0) / 100);
+                setPromoApplied({ code, discount_id: res.discount_id, discount_type: res.discount_type, percentage: res.percentage, amount_cents: res.amount_cents, label: res.label, savings });
+                setPromoOpen(false);
+              };
+              return (
+                <div style={{ marginTop: 10, marginBottom: 4 }}>
+                  {!promoApplied ? (
+                    !promoOpen ? (
+                      <button style={{ background: "none", border: "none", padding: 0, fontSize: 12, color: "#3AE58D", fontWeight: 600, cursor: "pointer", fontFamily: ff }} onClick={() => setPromoOpen(true)}>Have a promo code?</button>
+                    ) : (
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <input value={promoInput} onChange={e => setPromoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && applyPromoLes()} placeholder="Enter code" style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13, fontFamily: mono, textTransform: "uppercase", outline: "none" }} autoFocus />
+                        <button style={{ ...S.b1, padding: "9px 16px", fontSize: 13, minWidth: 72, background: "#00305B", opacity: promoLoading ? 0.6 : 1 }} onClick={applyPromoLes} disabled={promoLoading}>{promoLoading ? "…" : "Apply"}</button>
+                        <button style={{ background: "none", border: "none", fontSize: 18, color: "#aaa", cursor: "pointer", lineHeight: 1 }} onClick={() => { setPromoOpen(false); setPromoInput(""); }}>×</button>
+                      </div>
+                    )
+                  ) : (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#00305B", borderRadius: 20, padding: "5px 12px" }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#fff", fontFamily: mono }}>{promoApplied.code}</span>
+                      <span style={{ fontSize: 12, color: "#fff" }}>· -{promoApplied.label}</span>
+                      <button style={{ background: "none", border: "none", color: "#fff", fontSize: 14, cursor: "pointer", lineHeight: 1, padding: "0 0 0 4px" }} onClick={() => setPromoApplied(null)}>×</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {wrongCoach && <div style={{ ...S.polBox, background: "#FFF0F0", borderColor: "#E0392822" }}><p style={{ fontSize: 12, color: "#E03928", lineHeight: 1.5 }}>Credits only valid with {creditCoach?.n}. Full rate applies.</p></div>}
           </div>
           <div>
@@ -1306,7 +1426,9 @@ export default function BirdieGolfWebsite() {
               <button style={S.b2} onClick={() => setLesStep(0)}>Back</button>
               <button style={{ ...S.b1, flex: 2, background: "#00305B", opacity: lesAgree ? 1 : 0.4 }} onClick={async () => {
                 if (!lesAgree) return;
-                await saveLessonBooking({ bay: bayAssigned, date: lesDate, time: lesTime, coachId: lesCoach, coachName: coach?.n, total: lp.total, credit: lp.credit, cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card" });
+                const lesPromoSavings = (!lp.credit && promoApplied) ? promoApplied.savings : 0;
+                const lesTotal = Math.max(0, lp.total - lesPromoSavings);
+                await saveLessonBooking({ bay: bayAssigned, date: lesDate, time: lesTime, coachId: lesCoach, coachName: coach?.n, total: lesTotal, credit: lp.credit, cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card", promoSavings: lesPromoSavings, promoDiscountId: promoApplied?.discount_id || null, promoCode: promoApplied?.code || null });
                 setUpcomingBk(p => [...p, { type: "lesson", label: "Lesson · " + coach?.n, sub: fmtDate(lesDate) + " · " + lesTime + " · 1hr" }]);
                 if (lp.credit) { setTotL(c => Math.max(0, c - 1)); setCreditUsage(p => [...p, { date: fmtDate(new Date()), desc: "Lesson with " + coach?.n }]); }
                 setLesHistory(p => [...p, { type: "lesson", desc: "Lesson with " + coach?.n, date: fmtDate(new Date()), amt: lp.credit ? "1 credit" : lp.label }]);
