@@ -404,7 +404,6 @@ export default function BirdieGolfWebsite() {
   const [otpCode, setOtpCode] = useState("");
   const [otpSending, setOtpSending] = useState(false);
   const [verifySid, setVerifySid] = useState("");
-  const [otpCode, setOtpCode] = useState("");
   const [onbF, setOnbF] = useState("");
   const [onbL, setOnbL] = useState("");
   const [onbE, setOnbE] = useState("");
