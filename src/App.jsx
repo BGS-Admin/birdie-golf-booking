@@ -330,14 +330,7 @@ const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId }) => {
       try {
         const payments = window.Square.payments(appId, locationId);
         paymentsRef.current = payments;
-        const card = await payments.card({
-          style: {
-            ".input-container": { borderRadius: "10px", borderColor: "#e0ddd6" },
-            ".input-container.is-focus": { borderColor: "#072814" },
-            input: { fontFamily: "DM Sans", fontSize: "14px", color: "#1a1a1a" },
-            "input::placeholder": { color: "#bbb" },
-          }
-        });
+        const card = await payments.card();
         if (destroyed) { card.destroy(); return; }
         if (!containerRef.current) { card.destroy(); return; }
         await card.attach(containerRef.current);
@@ -984,12 +977,15 @@ export default function BirdieGolfWebsite() {
         </div>
       )}
       {isDesktop && (
-        <div style={S.greetRow}>
-          <div style={{ flex: 1 }}>
-            <h2 style={S.greetH}>Hey, {onbF}.</h2>
-            <p style={S.greetS}>Ready to hit the bays?</p>
+        <div style={{ background: "#072814", margin: "-24px -20px 24px", padding: "28px 20px 32px", borderRadius: "0 0 16px 16px" }}>
+          <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: "2px", color: "#3AE58D", marginBottom: 7, textTransform: "uppercase" }}>
+            {new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening"}
+          </p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <h2 style={{ fontSize: 30, fontWeight: 700, color: "#fff", lineHeight: 1.15 }}>Hey, {onbF}.</h2>
+            {tierData && <button style={S.tierBadge} onClick={() => setTab("membership")}>{tierData.badge}</button>}
           </div>
-          {tierData && <button style={S.tierBadge} onClick={() => setTab("membership")}>{tierData.badge}</button>}
+          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 6 }}>Ready to hit the bays?</p>
         </div>
       )}
 
