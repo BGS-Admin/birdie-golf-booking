@@ -36,23 +36,23 @@ const MEMBERSHIP_RENEWAL_SKUS: Record<string, string> = {
 
 // Enrollment fee is handled automatically by Square modifier on membership items
 
-// Lesson package variation IDs (unchanged)
-const LESSON_IDS: Record<string, Record<string, string>> = {
+// Lesson package SKUs — keyed by coach ID then package, looked up at runtime
+const LESSON_SKUS: Record<string, Record<string, string>> = {
   NC: {
-    "1hr_member":     "UKEHH3QVUTCYFGYCDUQ6CKUO",
-    "1hr_nonmember":  "GGVR2EPWJO7X6EXIA3UOZAW2",
-    "3hr_member":     "XRPRXOVQMGEGHHBJHGOHHRAP",
-    "3hr_nonmember":  "VZJ4WPN5SYIXHKG6JIHBTCXX",
-    "5hr_member":     "62HIMMGI7EHFMX7YL5CRJISI",
-    "5hr_nonmember":  "F5NKXSWKTRDH6AO2UODXK63F",
+    "1hr_member":    "812106T",  // 1-hr member lesson · Nicolas Cavero
+    "1hr_nonmember": "3399123",  // 1-hr non-member lesson · Nicolas Cavero
+    "3hr_member":    "201558A",  // 3-hr member package · Nicolas Cavero
+    "3hr_nonmember": "6136622",  // 3-hr non-member package · Nicolas Cavero
+    "5hr_member":    "X377645",  // 5-hr member package · Nicolas Cavero
+    "5hr_nonmember": "5205473",  // 5-hr non-member package · Nicolas Cavero
   },
   SE: {
-    "1hr_member":     "GZ7JVZFCC2KELEIUNYWSJCQC",
-    "1hr_nonmember":  "QYS6HWFENDYVIKY43VHRMGA2",
-    "3hr_member":     "4EHBCEAX2WBYKMHRIT275JO3",
-    "3hr_nonmember":  "MRS45AHNJGHNYYJD4MNBWVRY",
-    "5hr_member":     "523LP6SABJ2D563UORGTLJDU",
-    "5hr_nonmember":  "FDZP3N5RY7FJJFDQBVCGDRNA",
+    "1hr_member":    "Y241741",  // 1-hr member lesson · Santiago Espinoza
+    "1hr_nonmember": "P352820",  // 1-hr non-member lesson · Santiago Espinoza
+    "3hr_member":    "279777C",  // 3-hr member package · Santiago Espinoza
+    "3hr_nonmember": "324856H",  // 3-hr non-member package · Santiago Espinoza
+    "5hr_member":    "A232624",  // 5-hr member package · Santiago Espinoza
+    "5hr_nonmember": "R135065",  // 5-hr non-member package · Santiago Espinoza
   },
 };
 
@@ -655,7 +655,6 @@ async function processRenewals(): Promise<{ processed: number; errors: string[] 
           customer_id: square_customer_id,
           reference_id: "BGS Booking App",
           line_items: [{ quantity: "1", catalog_object_id: membershipVariationId, item_type: "ITEM" }],
-          taxes: [{ uid: "bgs-tax", name: "Sales Tax", percentage: "7", scope: "ORDER" }],
         },
       });
       const orderId = orderRes?.order?.id;
@@ -819,12 +818,7 @@ serve(async (req) => {
             customer_id: params.square_customer_id || undefined,
             reference_id: "BGS Booking App",
             line_items: lineItems,
-            taxes: params.apply_tax !== false ? [{
-              uid: "bgs-tax",
-              name: "Sales Tax",
-              percentage: "7",
-              scope: "ORDER",
-            }] : [],
+            // Taxes applied by Square at catalog level
           },
         };
         result = await squareRequest("/orders", "POST", orderBody);
@@ -853,7 +847,6 @@ serve(async (req) => {
             customer_id: params.square_customer_id,
             reference_id: "BGS Booking App",
             line_items: [{ quantity: String(slots), catalog_object_id: variationId, item_type: "ITEM" }],
-            taxes: [{ uid: "bgs-tax", name: "Sales Tax", percentage: "7", scope: "ORDER" }],
           },
         });
         const orderId = orderRes?.order?.id;
@@ -890,7 +883,6 @@ serve(async (req) => {
             customer_id: params.square_customer_id,
             reference_id: "BGS Booking App",
             line_items: lineItems,
-            taxes: [{ uid: "bgs-tax", name: "Sales Tax", percentage: "7", scope: "ORDER" }],
           },
         });
         const orderId = orderRes?.order?.id;
@@ -913,14 +905,16 @@ serve(async (req) => {
 
       case "lesson.purchase": {
         // Purchase lesson package via catalog item — differentiated by coach and member status
-        const coach = params.coach_id as keyof typeof LESSON_IDS; // "NC" or "SE"
+        const coach = params.coach_id as keyof typeof LESSON_SKUS; // "NC" or "SE"
         const isMember = params.is_member === true;
         const hours = params.hours; // 1, 3, or 5
-        const pkgKey = `${hours}hr_${isMember ? "member" : "nonmember"}` as keyof typeof LESSON_IDS["NC"];
-        const coachCatalog = LESSON_IDS[coach];
-        if (!coachCatalog) { result = { error: `Unknown coach: ${coach}` }; break; }
-        const variationId = coachCatalog[pkgKey];
-        if (!variationId) { result = { error: `Unknown package: ${pkgKey}` }; break; }
+        const pkgKey = `${hours}hr_${isMember ? "member" : "nonmember"}` as keyof typeof LESSON_SKUS["NC"];
+        const coachSkus = LESSON_SKUS[coach];
+        if (!coachSkus) { result = { error: `Unknown coach: ${coach}` }; break; }
+        const lesSku = coachSkus[pkgKey];
+        if (!lesSku) { result = { error: `Unknown package: ${pkgKey}` }; break; }
+        const variationId = await skuToVariationId(lesSku);
+        if (!variationId) { result = { error: `SKU lookup failed for lesson: ${lesSku}` }; break; }
         const orderRes = await squareRequest("/orders", "POST", {
           idempotency_key: crypto.randomUUID(),
           order: {
@@ -928,8 +922,7 @@ serve(async (req) => {
             customer_id: params.square_customer_id,
             reference_id: "BGS Booking App",
             line_items: [{ quantity: "1", catalog_object_id: variationId, item_type: "ITEM" }],
-            // Lessons are not taxable per catalog settings
-            taxes: [],
+            // Taxes applied by Square at catalog level
           },
         });
         const orderId = orderRes?.order?.id;
@@ -956,15 +949,24 @@ serve(async (req) => {
       case "location.get": result = await squareRequest(`/locations/${LOCATION_ID}`, "GET"); break;
 
       case "otp.send": {
-        // OTP temporarily in demo mode — any 6-digit code accepted
-        result = { sent: true, sid: "demo", demo: true };
+        const sendRes = await twilioVerifyRequest("/Verifications", new URLSearchParams({
+          To: `+1${params.phone}`,
+          Channel: "sms",
+        }));
+        if (sendRes.status === "pending") {
+          result = { sent: true, sid: sendRes.sid };
+        } else {
+          result = { sent: false, error: sendRes.message || "Failed to send OTP" };
+        }
         break;
       }
 
-            case "otp.verify": {
-        // OTP temporarily in demo mode — any 6-digit code accepted
-        const code = params.code || "";
-        result = { approved: code.length === 6, demo: true };
+      case "otp.verify": {
+        const verifyRes = await twilioVerifyRequest("/VerificationChecks", new URLSearchParams({
+          To: `+1${params.phone}`,
+          Code: params.code || "",
+        }));
+        result = { approved: verifyRes.status === "approved" };
         break;
       }
 
