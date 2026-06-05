@@ -788,7 +788,7 @@ export default function BirdieGolfWebsite() {
           placeholder="Enter 6-digit code"
           value={otpCode}
           onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
-          style={{ width: "100%", padding: "14px 16px", borderRadius: 10, border: "1.5px solid #ddd", fontSize: 22, letterSpacing: 8, textAlign: "center", fontFamily: "monospace", outline: "none", boxSizing: "border-box", marginBottom: 4 }}
+          style={{ width: "100%", padding: "14px 16px", borderRadius: 10, border: "1.5px solid #ddd", fontSize: 16, letterSpacing: 4, textAlign: "center", fontFamily: "monospace", outline: "none", boxSizing: "border-box", marginBottom: 4 }}
           autoFocus
         />
         <button style={{ ...S.b1, marginTop: 16, opacity: otpCode.length === 6 ? 1 : 0.4 }} onClick={async () => {
