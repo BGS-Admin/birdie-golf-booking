@@ -590,6 +590,7 @@ export default function BirdieGolfWebsite() {
           card_id: cardId,
           slots: bookingData.durSlots,
           is_peak: bookingData.isPeak === true,
+          tier: tier || "public",
           note: `Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.durSlots * 0.5}hr`,
         });
         sqPaymentId = chargeRes?.payment?.id;
@@ -1704,7 +1705,7 @@ export default function BirdieGolfWebsite() {
                   square_customer_id: sqCustId,
                   card_id: sqCardId,
                   tier: memModal.to,
-                  enrollment_fee: ef > 0,
+                  // enrollment_fee handled automatically by Square modifier on membership item
                 });
                 sqPaymentId = chargeRes?.payment?.id;
                 if (chargeRes?.error) { console.error("Membership charge failed:", chargeRes.error); }
