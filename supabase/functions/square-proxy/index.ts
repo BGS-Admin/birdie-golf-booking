@@ -962,7 +962,7 @@ serve(async (req) => {
       }
 
       case "otp.verify": {
-        const verifyRes = await twilioVerifyRequest("/VerificationChecks", new URLSearchParams({
+        const verifyRes = await twilioVerifyRequest("/VerificationCheck", new URLSearchParams({
           To: `+1${params.phone}`,
           Code: params.code || "",
         }));
