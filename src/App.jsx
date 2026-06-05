@@ -380,10 +380,7 @@ const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId }) => {
     <div style={{ marginTop: 12 }}>
       {loading && <p style={{ fontSize: 13, color: "#888", textAlign: "center", padding: "20px 0" }}>Loading secure card form…</p>}
       {err && <p style={{ fontSize: 12, color: "#E03928", marginBottom: 8 }}>{err}</p>}
-      <div style={{ position: "relative", marginBottom: 12 }}>
-        <div ref={containerRef} style={{ minHeight: 60 }} />
-        {loading && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f8f6", borderRadius: 10 }}><span style={{ fontSize: 12, color: "#888" }}>Loading card form…</span></div>}
-      </div>
+      <div style={{ position: "relative", marginBottom: 12 }}><div ref={containerRef} style={{ minHeight: 60 }} />{loading && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f8f6", borderRadius: 10 }}><span style={{ fontSize: 12, color: "#888" }}>Loading card form…</span></div>}</div>
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <button style={{ background: "#f0f0ee", color: "#1a1a1a", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 1 }} onClick={onCancel}>Cancel</button>
         <button style={{ background: "#072814", color: "#fff", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 2, opacity: loading || saving ? 0.5 : 1 }} disabled={loading || saving} onClick={handleSave}>{saving ? "Saving…" : "Save Card"}</button>
@@ -407,6 +404,7 @@ export default function BirdieGolfWebsite() {
   const [otpCode, setOtpCode] = useState("");
   const [otpSending, setOtpSending] = useState(false);
   const [verifySid, setVerifySid] = useState("");
+  const [otpCode, setOtpCode] = useState("");
   const [onbF, setOnbF] = useState("");
   const [onbL, setOnbL] = useState("");
   const [onbE, setOnbE] = useState("");
@@ -491,7 +489,6 @@ export default function BirdieGolfWebsite() {
   const [promoInput, setPromoInput] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoApplied, setPromoApplied] = useState(null);
-  // promoApplied shape: { code, discount_id, discount_type, percentage, amount_cents, label, savings }
 
   const days14 = gen14();
   const creditCoach = COACHES.find(c => c.id === creditCoachId);
@@ -630,15 +627,8 @@ export default function BirdieGolfWebsite() {
       date: dateKey(bookingData.date), amount: bookingData.total, payment_label: bookingData.cardLabel || "Card",
       square_payment_id: sqPaymentId,
     });
-    // Record promo redemption if one was applied
     if (bookingData.promoDiscountId && bookingData.promoSavings > 0 && customerId) {
-      sb.post("promo_redemptions", {
-        customer_id: customerId,
-        discount_id: bookingData.promoDiscountId,
-        discount_name: bookingData.promoCode || "",
-        amount_saved: bookingData.promoSavings,
-        booking_type: "bay",
-      });
+      sb.post("promo_redemptions", { customer_id: customerId, discount_id: bookingData.promoDiscountId, discount_name: bookingData.promoCode || "", amount_saved: bookingData.promoSavings, booking_type: "bay" });
     }
     // Always update local display
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -700,15 +690,8 @@ export default function BirdieGolfWebsite() {
       customer_id: customerId, description: "Lesson · " + bookingData.coachName,
       date: dateKey(bookingData.date), amount: bookingData.total, payment_label: bookingData.credit ? "Credit" : (bookingData.cardLabel || "Card"),
     });
-    // Record promo redemption if one was applied
     if (bookingData.promoDiscountId && bookingData.promoSavings > 0 && customerId) {
-      sb.post("promo_redemptions", {
-        customer_id: customerId,
-        discount_id: bookingData.promoDiscountId,
-        discount_name: bookingData.promoCode || "",
-        amount_saved: bookingData.promoSavings,
-        booking_type: "lesson",
-      });
+      sb.post("promo_redemptions", { customer_id: customerId, discount_id: bookingData.promoDiscountId, discount_name: bookingData.promoCode || "", amount_saved: bookingData.promoSavings, booking_type: "lesson" });
     }
     // Always update local display
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -977,15 +960,12 @@ export default function BirdieGolfWebsite() {
         </div>
       )}
       {isDesktop && (
-        <div style={{ background: "#072814", margin: "-24px -20px 24px", padding: "28px 20px 32px", borderRadius: "0 0 16px 16px" }}>
-          <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: "2px", color: "#3AE58D", marginBottom: 7, textTransform: "uppercase" }}>
-            {new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening"}
-          </p>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <h2 style={{ fontSize: 30, fontWeight: 700, color: "#fff", lineHeight: 1.15 }}>Hey, {onbF}.</h2>
-            {tierData && <button style={S.tierBadge} onClick={() => setTab("membership")}>{tierData.badge}</button>}
+        <div style={S.greetRow}>
+          <div style={{ flex: 1 }}>
+            <h2 style={S.greetH}>Hey, {onbF}.</h2>
+            <p style={S.greetS}>Ready to hit the bays?</p>
           </div>
-          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 6 }}>Ready to hit the bays?</p>
+          {tierData && <button style={S.tierBadge} onClick={() => setTab("membership")}>{tierData.badge}</button>}
         </div>
       )}
 
@@ -1170,14 +1150,13 @@ export default function BirdieGolfWebsite() {
               {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{eTier === "early_birdie" ? "Included (EB)" : "Credits Used"}</span><span style={{ ...S.confV, color: "#072814" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
               {price.disc > 0 && <div style={S.confRow}><span style={S.confL}>Member Discount</span><span style={{ ...S.confV, color: "#072814" }}>-${price.disc.toFixed(2)}</span></div>}
               {price.tax > 0 && <div style={S.confRow}><span style={S.confL}>Tax (7%)</span><span style={S.confV}>${price.tax.toFixed(2)}</span></div>}
-              {promoApplied && <div style={S.confRow}><span style={S.confL}>Promo ({promoApplied.code})</span><span style={{ ...S.confV, color: "#3AE58D" }}>-${promoApplied.savings.toFixed(2)}</span></div>}
               {eTier !== tier && <div style={{ background: "#FFF5E5", border: "1px solid #E8890C33", borderRadius: 8, padding: "8px 12px", marginBottom: 8 }}>
                 <p style={{ fontSize: 11, color: "#E8890C", fontWeight: 600 }}>Priced as {TIERS[eTier]?.n} — your new plan starting {renewDate}</p>
               </div>}
               <div style={S.confDiv} />
+              {promoApplied && <div style={S.confRow}><span style={S.confL}>Promo ({promoApplied.code})</span><span style={{ ...S.confV, color: "#3AE58D" }}>-${promoApplied.savings.toFixed(2)}</span></div>}
               <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700 }}>${(Math.max(0, price.total - (promoApplied?.savings || 0))).toFixed(2)}</span></div>
             </div>
-            {/* Promo code box */}
             {(() => {
               const applyPromo = async () => {
                 const code = promoInput.trim().toUpperCase();
@@ -1372,56 +1351,8 @@ export default function BirdieGolfWebsite() {
             <div style={S.confCard}>
               {[["Coach", coach?.n], ["Date", fmtDateLong(lesDate)], ["Time", lesTime + " · 1 hr"], ["Bay", "Bay " + bayAssigned]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
               <div style={S.confDiv} />
-              {(() => {
-                const lesPromoSavings = (!lp.credit && promoApplied) ? promoApplied.savings : 0;
-                const lesAdjTotal = Math.max(0, lp.total - lesPromoSavings);
-                return <>
-                  {promoApplied && !lp.credit && <div style={S.confRow}><span style={S.confL}>Promo ({promoApplied.code})</span><span style={{ ...S.confV, color: "#3AE58D" }}>-${lesPromoSavings.toFixed(2)}</span></div>}
-                  <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700, color: lp.credit ? "#072814" : "#1a1a1a" }}>{lp.credit ? lp.label : "$" + lesAdjTotal.toFixed(2)}</span></div>
-                </>;
-              })()}
+              <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700, color: lp.credit ? "#072814" : "#1a1a1a" }}>{lp.label}</span></div>
             </div>
-            {!lp.credit && (() => {
-              const applyPromoLes = async () => {
-                const code = promoInput.trim().toUpperCase();
-                if (!code) return;
-                setPromoLoading(true);
-                const res = await square("promo.validate", { code, customer_id: customerId });
-                setPromoLoading(false);
-                if (!res?.valid) {
-                  if (res?.reason === "already_used") fire("You’ve already used this promo code.");
-                  else if (res?.reason === "limit_reached") fire("This promo code is no longer available.");
-                  else fire("Promo code not found. Please check and try again.");
-                  return;
-                }
-                let savings = 0;
-                if (res.discount_type === "FIXED_PERCENTAGE") savings = Math.round(lp.total * (res.percentage / 100) * 100) / 100;
-                else savings = Math.min(lp.total, (res.amount_cents || 0) / 100);
-                setPromoApplied({ code, discount_id: res.discount_id, discount_type: res.discount_type, percentage: res.percentage, amount_cents: res.amount_cents, label: res.label, savings });
-                setPromoOpen(false);
-              };
-              return (
-                <div style={{ marginTop: 10, marginBottom: 4 }}>
-                  {!promoApplied ? (
-                    !promoOpen ? (
-                      <button style={{ background: "none", border: "none", padding: 0, fontSize: 12, color: "#3AE58D", fontWeight: 600, cursor: "pointer", fontFamily: ff }} onClick={() => setPromoOpen(true)}>Have a promo code?</button>
-                    ) : (
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <input value={promoInput} onChange={e => setPromoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && applyPromoLes()} placeholder="Enter code" style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13, fontFamily: mono, textTransform: "uppercase", outline: "none" }} autoFocus />
-                        <button style={{ ...S.b1, padding: "9px 16px", fontSize: 13, minWidth: 72, background: "#00305B", opacity: promoLoading ? 0.6 : 1 }} onClick={applyPromoLes} disabled={promoLoading}>{promoLoading ? "…" : "Apply"}</button>
-                        <button style={{ background: "none", border: "none", fontSize: 18, color: "#aaa", cursor: "pointer", lineHeight: 1 }} onClick={() => { setPromoOpen(false); setPromoInput(""); }}>×</button>
-                      </div>
-                    )
-                  ) : (
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#00305B", borderRadius: 20, padding: "5px 12px" }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "#fff", fontFamily: mono }}>{promoApplied.code}</span>
-                      <span style={{ fontSize: 12, color: "#fff" }}>· -{promoApplied.label}</span>
-                      <button style={{ background: "none", border: "none", color: "#fff", fontSize: 14, cursor: "pointer", lineHeight: 1, padding: "0 0 0 4px" }} onClick={() => setPromoApplied(null)}>×</button>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
             {wrongCoach && <div style={{ ...S.polBox, background: "#FFF0F0", borderColor: "#E0392822" }}><p style={{ fontSize: 12, color: "#E03928", lineHeight: 1.5 }}>Credits only valid with {creditCoach?.n}. Full rate applies.</p></div>}
           </div>
           <div>
@@ -1437,9 +1368,7 @@ export default function BirdieGolfWebsite() {
               <button style={S.b2} onClick={() => setLesStep(0)}>Back</button>
               <button style={{ ...S.b1, flex: 2, background: "#00305B", opacity: lesAgree ? 1 : 0.4 }} onClick={async () => {
                 if (!lesAgree) return;
-                const lesPromoSavings = (!lp.credit && promoApplied) ? promoApplied.savings : 0;
-                const lesTotal = Math.max(0, lp.total - lesPromoSavings);
-                await saveLessonBooking({ bay: bayAssigned, date: lesDate, time: lesTime, coachId: lesCoach, coachName: coach?.n, total: lesTotal, credit: lp.credit, cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card", promoSavings: lesPromoSavings, promoDiscountId: promoApplied?.discount_id || null, promoCode: promoApplied?.code || null });
+                await saveLessonBooking({ bay: bayAssigned, date: lesDate, time: lesTime, coachId: lesCoach, coachName: coach?.n, total: lp.total, credit: lp.credit, cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card" });
                 setUpcomingBk(p => [...p, { type: "lesson", label: "Lesson · " + coach?.n, sub: fmtDate(lesDate) + " · " + lesTime + " · 1hr" }]);
                 if (lp.credit) { setTotL(c => Math.max(0, c - 1)); setCreditUsage(p => [...p, { date: fmtDate(new Date()), desc: "Lesson with " + coach?.n }]); }
                 setLesHistory(p => [...p, { type: "lesson", desc: "Lesson with " + coach?.n, date: fmtDate(new Date()), amt: lp.credit ? "1 credit" : lp.label }]);
@@ -1482,7 +1411,7 @@ export default function BirdieGolfWebsite() {
       </div>}
 
       {hasCard && lesTab === "book" && <>
-        {totL > 0 && <div style={{ ...S.creditBanner, background: "rgba(0,48,91,0.07)", borderColor: "rgba(45,106,79,0.2)" }}>
+        {totL > 0 && <div style={{ ...S.creditBanner, background: "rgba(0,48,91,0.07)", borderColor: "rgba(0,48,91,0.2)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ background: "#00305B", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totL}</span><span style={{ fontSize: 13, fontWeight: 600, color: "#00305B" }}>Lesson Credits Available</span></div>
           <p style={{ fontSize: 11, color: "#888", marginTop: 4 }}>{creditPkg} · {creditCoach?.n}</p>
         </div>}
@@ -1511,7 +1440,7 @@ export default function BirdieGolfWebsite() {
 
         {lesDate && lesTime && lesCoach && (() => {
           const coach = COACHES.find(c => c.id === lesCoach), lp = lessonPrice(tier, totL > 0, creditCoachId, lesCoach);
-          return <div style={{ ...S.pricePreview, borderColor: "rgba(45,106,79,0.2)", background: "#00305B08", marginTop: 16 }}>
+          return <div style={{ ...S.pricePreview, borderColor: "rgba(0,48,91,0.2)", background: "#00305B08", marginTop: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div><p style={{ fontSize: 13, fontWeight: 600 }}>{coach?.n} · 1 hr</p><p style={{ fontSize: 11, color: "#888" }}>Bay {autoAssignBay(lesDate, lesTime, bayBlocks, allBookings, hoursConfig)}</p></div>
               <div style={{ textAlign: "right" }}>
@@ -2251,7 +2180,7 @@ const S = {
 
   /* Quick actions */
   qGrid: { display: "grid", gap: 8, marginBottom: 24 },
-  qBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 4px", background: "#C7BCA8", border: "none", borderRadius: 12, cursor: "pointer", fontFamily: ff },
+  qBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 4px", background: "#fff", border: "0.5px solid #e8e4dc", borderRadius: 12, cursor: "pointer", fontFamily: ff },
   qIc: { width: 40, height: 40, borderRadius: 8, background: "#072814", color: "#3AE58D", display: "flex", alignItems: "center", justifyContent: "center" },
   qL: { fontSize: 11, fontWeight: 600, color: "#072814" },
 
