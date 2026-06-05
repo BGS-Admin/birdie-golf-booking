@@ -780,18 +780,23 @@ export default function BirdieGolfWebsite() {
           <p style={LS.bs}>Wynwood, Miami, FL</p>
         </div>
         <p style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 20 }}>Code sent to +1 {ph.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")}</p>
-        <div style={LS.otpRow}>
-          {otp.map((v, i) => <input key={i} ref={otpRefs[i]} style={LS.otpIn} type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={1} value={v}
-            onChange={e => { const val = e.target.value.replace(/[^0-9]/g, "").slice(-1); const next = [...otp]; next[i] = val; setOtp(next); if (val && i < 5) otpRefs[i + 1].current?.focus(); }}
-            onKeyDown={e => { if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs[i - 1].current?.focus(); }} />)}
-        </div>
-        <button style={{ ...S.b1, marginTop: 16, opacity: otp.every(d => d) ? 1 : 0.4 }} onClick={async () => {
-          if (!otp.every(d => d)) return;
-          const verifyRes = await square("otp.verify", { phone: ph, code: otp.join(""), sid: verifySid });
+        <input
+          type="tel"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={6}
+          placeholder="Enter 6-digit code"
+          value={otpCode}
+          onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+          style={{ width: "100%", padding: "14px 16px", borderRadius: 10, border: "1.5px solid #ddd", fontSize: 22, letterSpacing: 8, textAlign: "center", fontFamily: "monospace", outline: "none", boxSizing: "border-box", marginBottom: 4 }}
+          autoFocus
+        />
+        <button style={{ ...S.b1, marginTop: 16, opacity: otpCode.length === 6 ? 1 : 0.4 }} onClick={async () => {
+          if (otpCode.length < 6) return;
+          const verifyRes = await square("otp.verify", { phone: ph, code: otpCode, sid: verifySid });
           if (!verifyRes || !verifyRes.approved) {
             fire("Incorrect code — please try again");
-            setOtp(["","","","","",""]);
-            otpRefs[0].current?.focus();
+            setOtpCode("");
             return;
           }
           // Look up phone in Supabase — skip onboarding if existing customer
