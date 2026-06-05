@@ -788,7 +788,6 @@ export default function BirdieGolfWebsite() {
           if (existing?.length) {
             const cust = existing[0];
             setCustomerId(cust.id);
-            setSqCustId(cust.square_customer_id || null);
             setOnbF(cust.first_name || "");
             setOnbL(cust.last_name || "");
             setOnbE(cust.email || "");
@@ -798,6 +797,18 @@ export default function BirdieGolfWebsite() {
             setBayCredits(cust.tier === "player" ? Math.min(cust.bay_credits_remaining || 0, 8) : (cust.bay_credits_remaining || 0));
             if (cust.renewal_date) setRenewDate(new Date(cust.renewal_date + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
             if (cust.member_since) setMemberSince(new Date(cust.member_since + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+            // If no Square customer ID, search Square first then create if not found
+            let sqId = cust.square_customer_id || null;
+            if (!sqId) {
+              const searchRes = await square("customer.search", { phone: cust.phone });
+              sqId = searchRes?.customers?.[0]?.id || null;
+              if (!sqId) {
+                const sqResult = await square("customer.create", { first_name: cust.first_name, last_name: cust.last_name, phone: cust.phone, email: cust.email, supabase_id: cust.id });
+                sqId = sqResult?.customer?.id || null;
+              }
+              if (sqId) await sb.patch("customers", `id=eq.${cust.id}`, { square_customer_id: sqId });
+            }
+            setSqCustId(sqId);
             loadUserData(cust.id);
             loadCards(cust.id);
             setLogged(true);
