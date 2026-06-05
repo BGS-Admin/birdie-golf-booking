@@ -316,8 +316,16 @@ const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId }) => {
       if (destroyed) return;
 
       // Wait for container to be in DOM and visible
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
       if (destroyed || !containerRef.current) return;
+
+      // Extra check: wait until container is actually in the DOM
+      let attempts = 0;
+      while (!document.contains(containerRef.current) && attempts < 10) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      if (destroyed || !containerRef.current || !document.contains(containerRef.current)) return;
 
       try {
         const payments = window.Square.payments(appId, locationId);
