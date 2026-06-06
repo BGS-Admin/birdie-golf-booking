@@ -752,10 +752,10 @@ export default function BirdieGolfWebsite() {
         }}>{otpSending ? "Sending code…" : "Continue"}</button>
         <div style={{ marginTop: 20, textAlign: "center" }}>
           <p style={{ fontSize: 12, color: "#aaa", lineHeight: 1.7, margin: 0 }}>
-            Need help?{" "}
-            <a href="https://wa.me/13054221222" target="_blank" rel="noopener noreferrer" style={{ color: "#3AE58D", fontWeight: 600, textDecoration: "none" }}>Contact us via WhatsApp</a>
+            Need help? Contact us via{" "}
+            <a href="https://wa.me/13054221222" target="_blank" rel="noopener noreferrer" style={{ color: "#3AE58D", fontWeight: 600, textDecoration: "none" }}>WhatsApp</a>
             {" "}or call us at{" "}
-            <a href="tel:+13054561449" style={{ color: "#3AE58D", fontWeight: 600, textDecoration: "none" }}>+1 (305) 456-4149</a>
+            <a href="tel:+13054561449" style={{ color: "#1a1a1a", fontWeight: 700, textDecoration: "none" }}>+1 (305) 456-4149</a>
           </p>
         </div>
         <div style={LS.footer}>
@@ -780,7 +780,8 @@ export default function BirdieGolfWebsite() {
           placeholder="Enter 6-digit code"
           value={otpCode}
           onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
-          style={{ width: "100%", padding: "14px 16px", borderRadius: 10, border: "1.5px solid #ddd", fontSize: 15, letterSpacing: 6, textAlign: "center", fontFamily: ff, outline: "none", boxSizing: "border-box", marginBottom: 4 }}
+          className="otp-input"
+          style={{ width: "100%", padding: "14px 16px", borderRadius: 10, border: "1.5px solid #ddd", fontSize: 15, letterSpacing: otpCode.length > 0 ? 6 : 0, textAlign: "center", fontFamily: ff, outline: "none", boxSizing: "border-box", marginBottom: 4 }}
           autoComplete="one-time-code"
           autoFocus
         />
@@ -2233,7 +2234,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
    STYLES
    ═══════════════════════════════════════════════════════════ */
 
-const CSS = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}html,body,#root{height:100%;overflow:hidden}::-webkit-scrollbar{width:3px;height:3px}::-webkit-scrollbar-thumb{background:#ddd;border-radius:4px}input:focus,button:focus{outline:none}@keyframes ti{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}button:active{transform:scale(0.97)}`;
+const CSS = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}html,body,#root{height:100%;overflow:hidden}::-webkit-scrollbar{width:3px;height:3px}::-webkit-scrollbar-thumb{background:#ddd;border-radius:4px}input:focus,button:focus{outline:none}.otp-input::placeholder{font-family:'DM Sans',sans-serif;font-size:14px;letter-spacing:0;color:#bbb}@keyframes ti{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}button:active{transform:scale(0.97)}`;
 
 const LS = {
   w: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(155deg,#072814,#0a3520 45%,#0f4a25)", fontFamily: ff, padding: 20 },
