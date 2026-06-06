@@ -589,6 +589,7 @@ export default function BirdieGolfWebsite() {
           is_peak: bookingData.isPeak === true,
           tier: tier || "public",
           note: `Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.durSlots * 0.5}hr`,
+          promo_catalog_id: bookingData.promoCatalogId || null,
         });
         sqPaymentId = chargeRes?.payment?.id;
         if (chargeRes?.error) { console.error("Square charge failed:", chargeRes.error); }
@@ -1158,13 +1159,21 @@ export default function BirdieGolfWebsite() {
               {[["Date", fmtDateLong(bkDate)], ["Duration", durHrs + " hr" + (durHrs > 1 ? "s" : "")], ["Time", bkTime], ["Bay", "Bay " + bkBay]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
               {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{eTier === "early_birdie" ? "Included (EB)" : "Credits Used"}</span><span style={{ ...S.confV, color: "#072814" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
               {price.disc > 0 && <div style={S.confRow}><span style={S.confL}>Member Discount</span><span style={{ ...S.confV, color: "#072814" }}>-${price.disc.toFixed(2)}</span></div>}
-              {price.tax > 0 && <div style={S.confRow}><span style={S.confL}>Tax (7%)</span><span style={S.confV}>${price.tax.toFixed(2)}</span></div>}
-              {eTier !== tier && <div style={{ background: "#FFF5E5", border: "1px solid #E8890C33", borderRadius: 8, padding: "8px 12px", marginBottom: 8 }}>
-                <p style={{ fontSize: 11, color: "#E8890C", fontWeight: 600 }}>Priced as {TIERS[eTier]?.n} — your new plan starting {renewDate}</p>
-              </div>}
-              <div style={S.confDiv} />
-              {promoApplied && <div style={S.confRow}><span style={S.confL}>Promo ({promoApplied.code})</span><span style={{ ...S.confV, color: "#3AE58D" }}>-${promoApplied.savings.toFixed(2)}</span></div>}
-              <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700 }}>${(Math.max(0, price.total - (promoApplied?.savings || 0))).toFixed(2)}</span></div>
+              {(() => {
+                const promoDisc = promoApplied?.savings || 0;
+                const discountedSubtotal = Math.max(0, price.subtotal - promoDisc);
+                const recalcTax = Math.round(discountedSubtotal * 0.07 * 100) / 100;
+                const finalTotal = discountedSubtotal + recalcTax;
+                return <>
+                  {price.tax > 0 && <div style={S.confRow}><span style={S.confL}>Tax (7%)</span><span style={S.confV}>${(promoApplied ? recalcTax : price.tax).toFixed(2)}</span></div>}
+                  {eTier !== tier && <div style={{ background: "#FFF5E5", border: "1px solid #E8890C33", borderRadius: 8, padding: "8px 12px", marginBottom: 8 }}>
+                    <p style={{ fontSize: 11, color: "#E8890C", fontWeight: 600 }}>Priced as {TIERS[eTier]?.n} — your new plan starting {renewDate}</p>
+                  </div>}
+                  <div style={S.confDiv} />
+                  {promoApplied && <div style={S.confRow}><span style={S.confL}>Promo ({promoApplied.code})</span><span style={{ ...S.confV, color: "#3AE58D" }}>-${promoDisc.toFixed(2)}</span></div>}
+                  <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700 }}>${(promoApplied ? finalTotal : price.total).toFixed(2)}</span></div>
+                </>;
+              })()}
             </div>
             {(() => {
               const applyPromo = async () => {
@@ -1180,9 +1189,10 @@ export default function BirdieGolfWebsite() {
                   return;
                 }
                 let savings = 0;
-                if (res.discount_type === "FIXED_PERCENTAGE") savings = Math.round(price.total * (res.percentage / 100) * 100) / 100;
-                else savings = Math.min(price.total, (res.amount_cents || 0) / 100);
-                setPromoApplied({ code, discount_id: res.discount_id, discount_type: res.discount_type, percentage: res.percentage, amount_cents: res.amount_cents, label: res.label, savings });
+                // Calculate discount on pre-tax subtotal so tax is applied on discounted amount
+                if (res.discount_type === "FIXED_PERCENTAGE") savings = Math.round(price.subtotal * (res.percentage / 100) * 100) / 100;
+                else savings = Math.min(price.subtotal, (res.amount_cents || 0) / 100);
+                setPromoApplied({ code, discount_id: res.discount_id, promo_catalog_id: res.discount_id, discount_type: res.discount_type, percentage: res.percentage, amount_cents: res.amount_cents, label: res.label, savings });
                 setPromoOpen(false);
               };
               return (
@@ -1216,10 +1226,13 @@ export default function BirdieGolfWebsite() {
               <label style={S.chkRow}><input type="checkbox" checked={bkAgree} onChange={() => setBkAgree(!bkAgree)} style={{ marginRight: 8, accentColor: "#072814" }} /><span style={{ fontSize: 12 }}>I agree to the cancellation policy</span></label>
             </div>
             {(() => {
-              const bayTotal = Math.max(0, price.total - (promoApplied?.savings || 0));
+              const promoDisc = promoApplied?.savings || 0;
+              const discountedSubtotal = Math.max(0, price.subtotal - promoDisc);
+              const recalcTax = price.tax > 0 ? Math.round(discountedSubtotal * 0.07 * 100) / 100 : 0;
+              const bayTotal = promoApplied ? discountedSubtotal + recalcTax : price.total;
               const needsCard = bayTotal > 0 && cards.length === 0;
               const doBook = async (cardLabel) => {
-                await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: bayTotal, credits: price.credits, disc: price.disc, isPeak: isPeak(bkDate, bkTime), cardLabel: cardLabel || (cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card"), promoSavings: promoApplied?.savings || 0, promoDiscountId: promoApplied?.discount_id || null, promoCode: promoApplied?.code || null });
+                await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: bayTotal, credits: price.credits, disc: price.disc, isPeak: isPeak(bkDate, bkTime), cardLabel: cardLabel || (cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card"), promoSavings: promoApplied?.savings || 0, promoDiscountId: promoApplied?.discount_id || null, promoCatalogId: promoApplied?.promo_catalog_id || null, promoCode: promoApplied?.code || null });
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? bkDate.toISOString().split("T")[0] : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
                 if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
                 fire("Bay booked!"); resetBk(); setTab("home");
