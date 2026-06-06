@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const SQUARE_ACCESS_TOKEN = "EAAAly4dd_byZZsAOGBncoZNy_DDVPYb24YwIIx9Gf2CP_ataCCFLcBD2GuGLIJZ";
+const SQUARE_ACCESS_TOKEN = Deno.env.get("SQUARE_ACCESS_TOKEN") || "";
 const SQUARE_BASE_URL = "https://connect.squareup.com/v2";
 const LOCATION_ID = "LTNVZZ9PJH2K8";
 
