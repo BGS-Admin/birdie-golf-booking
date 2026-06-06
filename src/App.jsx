@@ -1661,7 +1661,7 @@ export default function BirdieGolfWebsite() {
         </div>
         <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <div style={S.detailCard}><h4 style={S.detailH}>Plan Details</h4>
-            {[["Plan", td.n], ["Monthly Rate", "$" + td.price], ["Member Since", memberSince], ["Next Renewal", renewDate], ["Bay Hours", tier === "champion" ? "Unlimited (max 2hr/booking)" : tier === "early_birdie" ? "Unlimited Mon–Fri 8am–4pm" : bayCredits + " of 8 remaining"]].map(([l, v]) => <div key={l} style={S.detailRow}><span style={S.detailL}>{l}</span><span style={S.detailV}>{v}</span></div>)}</div>
+            {[["Plan", td.n], ["Monthly Rate", "$" + td.price], ["Member Since", memberSince], ["Next Renewal", renewDate], ...(tier === "champion" ? [["Bay Hours", "Unlimited (max 2hr/booking)"]] : tier === "early_birdie" ? [["Bay Hours", "2 non-peak hrs/day · Mon–Fri 8am–4pm"]] : tier === "player" ? [["Bay Hours", bayCredits + " of 8 remaining"]] : [])].map(([l, v]) => <div key={l} style={S.detailRow}><span style={S.detailL}>{l}</span><span style={S.detailV}>{v}</span></div>)}</div>
           <div style={S.detailCard}><h4 style={S.detailH}>Perks</h4>
             {td.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}><span style={{ color: "#072814" }}>{X.chk(16)}</span><span style={{ fontSize: 13 }}>{p}</span></div>)}</div>
         </div>

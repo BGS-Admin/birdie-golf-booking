@@ -883,7 +883,7 @@ serve(async (req) => {
           location_id: LOCATION_ID,
           order_id: orderId,
           reference_id: "BGS Booking App",
-          
+          note: params.note || undefined,
           autocomplete: true,
         });
         result = { order: orderRes?.order, payment: payRes?.payment };
@@ -922,7 +922,7 @@ serve(async (req) => {
           location_id: LOCATION_ID,
           order_id: orderId,
           reference_id: "BGS Booking App",
-          
+          note: `${tier} membership`,
           autocomplete: true,
         });
         result = { order: orderRes?.order, payment: payRes?.payment };
@@ -964,7 +964,7 @@ serve(async (req) => {
           location_id: LOCATION_ID,
           order_id: orderId,
           reference_id: "BGS Booking App",
-          
+          note: `${hours}-hr lesson package — ${coach}`,
           autocomplete: true,
         });
         result = { order: orderRes?.order, payment: payRes?.payment };
