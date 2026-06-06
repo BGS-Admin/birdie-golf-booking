@@ -68,6 +68,18 @@ const skuToVariationId = async (sku: string): Promise<string | null> => {
   return match?.id || null;
 };
 
+/* ─── Florida sales tax catalog ID lookup (cached per cold start) ─── */
+let _floridaTaxId: string | null = null;
+const getFloridaTaxId = async (): Promise<string | null> => {
+  if (_floridaTaxId) return _floridaTaxId;
+  const res = await squareRequest("/catalog/search", "POST", { object_types: ["TAX"] });
+  const tax = (res?.objects || []).find(
+    (o: any) => o.type === "TAX" && (o.tax_data?.name || "").toLowerCase().includes("florida")
+  );
+  _floridaTaxId = tax?.id || null;
+  return _floridaTaxId;
+};
+
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const ADMIN_EMAIL = Deno.env.get("ADMIN_EMAIL") || "";
@@ -840,14 +852,25 @@ serve(async (req) => {
         const baySku = BAY_SKUS[baySkuKey];
         const variationId = await skuToVariationId(baySku);
         if (!variationId) { result = { error: `SKU lookup failed for: ${baySku}` }; break; }
+        // Look up Florida tax + build order
+        const floridaTaxId = await getFloridaTaxId();
+        const bayOrderBody: any = {
+          location_id: LOCATION_ID,
+          customer_id: params.square_customer_id,
+          reference_id: "BGS Booking App",
+          line_items: [{ quantity: String(slots), catalog_object_id: variationId, item_type: "ITEM" }],
+        };
+        // Apply Florida tax explicitly if found
+        if (floridaTaxId) {
+          bayOrderBody.taxes = [{ catalog_object_id: floridaTaxId, scope: "ORDER" }];
+        }
+        // Apply promo discount if provided (Square catalog discount object)
+        if (params.promo_catalog_id) {
+          bayOrderBody.discounts = [{ catalog_object_id: params.promo_catalog_id, scope: "ORDER" }];
+        }
         const orderRes = await squareRequest("/orders", "POST", {
           idempotency_key: crypto.randomUUID(),
-          order: {
-            location_id: LOCATION_ID,
-            customer_id: params.square_customer_id,
-            reference_id: "BGS Booking App",
-            line_items: [{ quantity: String(slots), catalog_object_id: variationId, item_type: "ITEM" }],
-          },
+          order: { ...bayOrderBody, source: { name: "BGS Booking App" } },
         });
         const orderId = orderRes?.order?.id;
         const totalMoney = orderRes?.order?.total_money;
@@ -860,7 +883,7 @@ serve(async (req) => {
           location_id: LOCATION_ID,
           order_id: orderId,
           reference_id: "BGS Booking App",
-          note: params.note || `Bay booking`,
+          
           autocomplete: true,
         });
         result = { order: orderRes?.order, payment: payRes?.payment };
@@ -876,14 +899,17 @@ serve(async (req) => {
         if (!memVariationId) { result = { error: `SKU lookup failed for membership: ${memSku}` }; break; }
         // Single line item — enrollment fee is added automatically by Square modifier on the membership item
         const lineItems: any[] = [{ quantity: "1", catalog_object_id: memVariationId, item_type: "ITEM" }];
+        const memTaxId = await getFloridaTaxId();
+        const memOrderBody: any = {
+          location_id: LOCATION_ID,
+          customer_id: params.square_customer_id,
+          reference_id: "BGS Booking App",
+          line_items: lineItems,
+        };
+        if (memTaxId) memOrderBody.taxes = [{ catalog_object_id: memTaxId, scope: "ORDER" }];
         const orderRes = await squareRequest("/orders", "POST", {
           idempotency_key: crypto.randomUUID(),
-          order: {
-            location_id: LOCATION_ID,
-            customer_id: params.square_customer_id,
-            reference_id: "BGS Booking App",
-            line_items: lineItems,
-          },
+          order: { ...memOrderBody, source: { name: "BGS Booking App" } },
         });
         const orderId = orderRes?.order?.id;
         const totalMoney = orderRes?.order?.total_money;
@@ -896,7 +922,7 @@ serve(async (req) => {
           location_id: LOCATION_ID,
           order_id: orderId,
           reference_id: "BGS Booking App",
-          note: `${tier} membership`,
+          
           autocomplete: true,
         });
         result = { order: orderRes?.order, payment: payRes?.payment };
@@ -915,15 +941,17 @@ serve(async (req) => {
         if (!lesSku) { result = { error: `Unknown package: ${pkgKey}` }; break; }
         const variationId = await skuToVariationId(lesSku);
         if (!variationId) { result = { error: `SKU lookup failed for lesson: ${lesSku}` }; break; }
+        const lesTaxId = await getFloridaTaxId();
+        const lesOrderBody: any = {
+          location_id: LOCATION_ID,
+          customer_id: params.square_customer_id,
+          reference_id: "BGS Booking App",
+          line_items: [{ quantity: "1", catalog_object_id: variationId, item_type: "ITEM" }],
+        };
+        if (lesTaxId) lesOrderBody.taxes = [{ catalog_object_id: lesTaxId, scope: "ORDER" }];
         const orderRes = await squareRequest("/orders", "POST", {
           idempotency_key: crypto.randomUUID(),
-          order: {
-            location_id: LOCATION_ID,
-            customer_id: params.square_customer_id,
-            reference_id: "BGS Booking App",
-            line_items: [{ quantity: "1", catalog_object_id: variationId, item_type: "ITEM" }],
-            // Taxes applied by Square at catalog level
-          },
+          order: { ...lesOrderBody, source: { name: "BGS Booking App" } },
         });
         const orderId = orderRes?.order?.id;
         const totalMoney = orderRes?.order?.total_money;
@@ -936,7 +964,7 @@ serve(async (req) => {
           location_id: LOCATION_ID,
           order_id: orderId,
           reference_id: "BGS Booking App",
-          note: `${hours}-hr lesson package — ${coach}`,
+          
           autocomplete: true,
         });
         result = { order: orderRes?.order, payment: payRes?.payment };

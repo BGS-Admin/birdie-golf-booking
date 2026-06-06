@@ -102,7 +102,7 @@ const TIERS = {
 };
 
 /* Default: coaches available all operating hours. Admin updates override via Supabase. */
-const ALL_WD_SLOTS = ["7:00 AM","7:30 AM","8:00 AM","8:30 AM","9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","12:00 PM","12:30 PM","1:00 PM","1:30 PM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM","4:30 PM","5:00 PM","5:30 PM","6:00 PM","6:30 PM","7:00 PM","7:30 PM","8:00 PM","8:30 PM","9:00 PM","9:30 PM"];
+const ALL_WD_SLOTS = ["8:00 AM","8:30 AM","9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","12:00 PM","12:30 PM","1:00 PM","1:30 PM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM","4:30 PM","5:00 PM","5:30 PM","6:00 PM","6:30 PM","7:00 PM","7:30 PM","8:00 PM","8:30 PM","9:00 PM","9:30 PM"];
 const ALL_WE_SLOTS = ["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","12:00 PM","12:30 PM","1:00 PM","1:30 PM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM","4:30 PM","5:00 PM","5:30 PM","6:00 PM","6:30 PM","7:00 PM","7:30 PM","8:00 PM","8:30 PM"];
 const FULL_AV = { Mon: ALL_WD_SLOTS, Tue: ALL_WD_SLOTS, Wed: ALL_WD_SLOTS, Thu: ALL_WD_SLOTS, Fri: ALL_WD_SLOTS, Sat: ALL_WE_SLOTS, Sun: ALL_WE_SLOTS };
 
@@ -124,11 +124,11 @@ function gen14() { const a = [], t = new Date(); t.setHours(0,0,0,0); for (let i
 function getHours(d, hoursConfig) {
   if (hoursConfig) {
     const wknd = isWeekend(d);
-    const open  = toH(wknd ? (hoursConfig.weekend_open  || "9:00 AM")  : (hoursConfig.weekday_open  || "7:00 AM"));
+    const open  = toH(wknd ? (hoursConfig.weekend_open  || "9:00 AM")  : (hoursConfig.weekday_open  || "8:00 AM"));
     const close = toH(wknd ? (hoursConfig.weekend_close || "9:00 PM")  : (hoursConfig.weekday_close || "10:00 PM"));
     return ALL_TIMES.filter(s => { const h = toH(s); return h >= open && h < close; });
   }
-  return isWeekend(d) ? WK_TIMES : ALL_TIMES.filter(t => { const h = toH(t); return h >= 7 && h < 22; });
+  return isWeekend(d) ? WK_TIMES : ALL_TIMES.filter(t => { const h = toH(t); return h >= 8 && h < 22; });
 }
 
 /* ─── Availability Logic ─── */
@@ -623,7 +623,7 @@ export default function BirdieGolfWebsite() {
     }
     // Save transaction to Supabase (fire and forget)
     sb.post("transactions", {
-      customer_id: customerId, description: "Bay Booking · Bay " + bookingData.bay,
+      customer_id: customerId, description: "Bay Rental · Bay " + bookingData.bay + " · " + bookingData.time,
       date: dateKey(bookingData.date), amount: bookingData.total, payment_label: bookingData.cardLabel || "Card",
       square_payment_id: sqPaymentId,
     });
@@ -632,7 +632,7 @@ export default function BirdieGolfWebsite() {
     }
     // Always update local display
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    setTransactions(p => [{ desc: "Bay Booking · Bay " + bookingData.bay, date: today, method: bookingData.cardLabel || "Card", amt: "$" + bookingData.total.toFixed(2) }, ...p]);
+    setTransactions(p => [{ desc: "Bay Rental · Bay " + bookingData.bay + " · " + bookingData.time, date: today, method: bookingData.cardLabel || "Card", amt: "$" + bookingData.total.toFixed(2) }, ...p]);
     // Send confirmation emails
     const emailData = {
       customer_name: onbF + " " + onbL,
@@ -687,7 +687,7 @@ export default function BirdieGolfWebsite() {
     });
     // Save transaction to Supabase (fire and forget)
     sb.post("transactions", {
-      customer_id: customerId, description: "Lesson · " + bookingData.coachName,
+      customer_id: customerId, description: "Lesson · " + bookingData.coachName + " · " + bookingData.date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       date: dateKey(bookingData.date), amount: bookingData.total, payment_label: bookingData.credit ? "Credit" : (bookingData.cardLabel || "Card"),
     });
     if (bookingData.promoDiscountId && bookingData.promoSavings > 0 && customerId) {
@@ -695,7 +695,7 @@ export default function BirdieGolfWebsite() {
     }
     // Always update local display
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    setTransactions(p => [{ desc: "Lesson · " + bookingData.coachName, date: today, method: bookingData.credit ? "Credit" : (bookingData.cardLabel || "Card"), amt: "$" + bookingData.total.toFixed(2) }, ...p]);
+    setTransactions(p => [{ desc: "Lesson · " + bookingData.coachName + " · " + bookingData.date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), date: today, method: bookingData.credit ? "Credit" : (bookingData.cardLabel || "Card"), amt: "$" + bookingData.total.toFixed(2) }, ...p]);
     // Send confirmation emails
     const emailData = {
       customer_name: onbF + " " + onbL,
