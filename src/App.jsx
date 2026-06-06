@@ -290,7 +290,7 @@ function useWidth() {
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════ */
 /* ─── Add Card Form (isolated to prevent focus loss on re-render) ─── */
-const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId }) => {
+const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId, saveLabel }) => {
   const containerRef = React.useRef();
   const cardRef = React.useRef(null);
   const paymentsRef = React.useRef(null);
@@ -383,7 +383,7 @@ const AddCardForm = React.memo(({ onSave, onCancel, appId, locationId }) => {
       <div style={{ position: "relative", marginBottom: 12 }}><div ref={containerRef} style={{ minHeight: 60 }} />{loading && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f8f6", borderRadius: 10 }}><span style={{ fontSize: 12, color: "#888" }}>Loading card form…</span></div>}</div>
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <button style={{ background: "#f0f0ee", color: "#1a1a1a", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 1 }} onClick={onCancel}>Cancel</button>
-        <button style={{ background: "#072814", color: "#fff", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 2, opacity: loading || saving ? 0.5 : 1 }} disabled={loading || saving} onClick={handleSave}>{saving ? "Saving…" : "Save Card"}</button>
+        <button style={{ background: "#072814", color: "#fff", border: "none", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", flex: 2, opacity: loading || saving ? 0.5 : 1 }} disabled={loading || saving} onClick={handleSave}>{saving ? "Processing…" : (saveLabel || "Save Card")}</button>
       </div>
       <p style={{ fontSize: 10, color: "#ccc", textAlign: "center", marginTop: 8 }}>Secured by Square</p>
     </div>
@@ -854,8 +854,7 @@ export default function BirdieGolfWebsite() {
             if (sbId) await sb.patch("customers", `id=eq.${sbId}`, { square_customer_id: sqId });
           }
           setLogged(true); if (sbId) { loadUserData(sbId); loadCards(sbId); }
-          fire("Welcome, " + onbF + "! Please add a card to start booking.");
-          setTab("profile"); setAddCard(true);
+          fire("Welcome to Birdie Golf Studios, " + onbF + "!");
         }}>Create Account</button>
       </>
     );
@@ -1216,19 +1215,42 @@ export default function BirdieGolfWebsite() {
               <p style={{ fontSize: 12, color: "#8B6914", lineHeight: 1.5, marginBottom: 12 }}>Cancellations within 24 hours are non-refundable.</p>
               <label style={S.chkRow}><input type="checkbox" checked={bkAgree} onChange={() => setBkAgree(!bkAgree)} style={{ marginRight: 8, accentColor: "#072814" }} /><span style={{ fontSize: 12 }}>I agree to the cancellation policy</span></label>
             </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button style={S.b2} onClick={() => setBkStep(0)}>Back</button>
-              <button style={{ ...S.b1, flex: 2, opacity: bkAgree ? 1 : 0.4 }} onClick={async () => {
-                if (!bkAgree) return;
-                const bayTotal = Math.max(0, price.total - (promoApplied?.savings || 0));
-                if (bayTotal > 0 && cards.length === 0) { fire("Please add a card in your Profile before booking."); setTab("profile"); return; }
-                const durH = bkDur * 0.5;
-                await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: bayTotal, credits: price.credits, disc: price.disc, isPeak: isPeak(bkDate, bkTime), cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card", promoSavings: promoApplied?.savings || 0, promoDiscountId: promoApplied?.discount_id || null, promoCode: promoApplied?.code || null });
+            {(() => {
+              const bayTotal = Math.max(0, price.total - (promoApplied?.savings || 0));
+              const needsCard = bayTotal > 0 && cards.length === 0;
+              const doBook = async (cardLabel) => {
+                await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: bayTotal, credits: price.credits, disc: price.disc, isPeak: isPeak(bkDate, bkTime), cardLabel: cardLabel || (cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card"), promoSavings: promoApplied?.savings || 0, promoDiscountId: promoApplied?.discount_id || null, promoCode: promoApplied?.code || null });
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? bkDate.toISOString().split("T")[0] : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
                 if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
                 fire("Bay booked!"); resetBk(); setTab("home");
-              }}>Confirm & Pay</button>
-            </div>
+              };
+              return needsCard ? (
+                <div style={{ marginTop: 16 }}>
+                  <p style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>Enter your card — it will be saved to your profile for future bookings.</p>
+                  <AddCardForm
+                    appId={SQUARE_APP_ID}
+                    locationId={SQUARE_LOCATION_ID}
+                    saveLabel={`Confirm & Pay $${bayTotal.toFixed(2)}`}
+                    onCancel={() => setBkStep(0)}
+                    onSave={async ({ nonce, brand, last4, exp }) => {
+                      if (!sqCustId) return;
+                      const res = await square("card.save", { customer_id: sqCustId, nonce });
+                      if (res?.card) {
+                        const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: res.card.id });
+                        const newCard = saved?.[0] ? { id: saved[0].id, brand, last4, exp, square_card_id: res.card.id } : { id: Date.now(), brand, last4, exp, square_card_id: res.card.id };
+                        setCards([newCard]);
+                        await doBook(brand + " ···" + last4);
+                      } else { fire("Could not save card. Please try again."); }
+                    }}
+                  />
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                  <button style={S.b2} onClick={() => setBkStep(0)}>Back</button>
+                  <button style={{ ...S.b1, flex: 2, opacity: bkAgree ? 1 : 0.4 }} onClick={async () => { if (!bkAgree) return; await doBook(); }}>Confirm & Pay</button>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </>;
@@ -1236,16 +1258,11 @@ export default function BirdieGolfWebsite() {
 
     return <>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>Book a Bay</h2>
-      {!hasCard && <div style={{ background: "#FFF0F0", border: "1px solid #E0392822", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: "#E03928", marginBottom: 4 }}>Payment method required</p>
-        <p style={{ fontSize: 12, color: "#E03928cc", marginBottom: 10 }}>Add a card to your profile before booking a bay.</p>
-        <button style={{ ...S.b1, background: "#E03928", maxWidth: 180, fontSize: 13, padding: "10px 14px" }} onClick={() => setTab("profile")}>Add Card</button>
-      </div>}
       {tier === "champion" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#124A2B" }}>Unlimited · Max 2hrs/booking</span></div>}
       {tier === "early_birdie" && <div style={{ ...S.creditBanner, borderColor: "rgba(7,40,20,0.2)", background: "rgba(7,40,20,0.03)" }}><span style={{ fontSize: 13, fontWeight: 600, color: "#072814" }}>Unlimited Mon–Fri 8am–4pm · Full rate outside window</span></div>}
       {tier === "player" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#072814" }}>{bayCredits > 0 ? bayCredits + " hrs of credits remaining this cycle" : "No bay credits remaining this cycle"}</span></div>}
 
-      {hasCard && <><h4 style={S.stepH}>Select Date</h4>
+      <><h4 style={S.stepH}>Select Date</h4>
       <div style={S.dateScroll}>
         {days14.map(d => {
           const sel = bkDate && dateKey(bkDate) === dateKey(d);
@@ -1274,7 +1291,7 @@ export default function BirdieGolfWebsite() {
             <span style={{ fontSize: 10, color: sel ? "#ffffffcc" : "#aaa" }}>{d.toLocaleDateString("en-US", { month: "short" })}</span>
           </button>;
         })}
-      </div></>}
+      </div></>
 
       {bkDate && <><h4 style={S.stepH}>Select Duration</h4>
         <div style={{ ...S.durGrid, gridTemplateColumns: isDesktop ? "repeat(8, 1fr)" : "repeat(4, 1fr)" }}>
@@ -1374,19 +1391,44 @@ export default function BirdieGolfWebsite() {
               </div>
               <label style={S.chkRow}><input type="checkbox" checked={lesAgree} onChange={() => setLesAgree(!lesAgree)} style={{ marginRight: 8, accentColor: "#00305B" }} /><span style={{ fontSize: 12 }}>I have read and agree to the cancellation policy</span></label>
             </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button style={S.b2} onClick={() => setLesStep(0)}>Back</button>
-              <button style={{ ...S.b1, flex: 2, background: "#00305B", opacity: lesAgree ? 1 : 0.4 }} onClick={async () => {
-                if (!lesAgree) return;
-                await saveLessonBooking({ bay: bayAssigned, date: lesDate, time: lesTime, coachId: lesCoach, coachName: coach?.n, total: lp.total, credit: lp.credit, cardLabel: cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card" });
+            {(() => {
+              const needsCard = lp.total > 0 && cards.length === 0;
+              const doBook = async (cardLabel) => {
+                await saveLessonBooking({ bay: bayAssigned, date: lesDate, time: lesTime, coachId: lesCoach, coachName: coach?.n, total: lp.total, credit: lp.credit, cardLabel: cardLabel || (cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card") });
                 setUpcomingBk(p => [...p, { type: "lesson", label: "Lesson · " + coach?.n, sub: fmtDate(lesDate) + " · " + lesTime + " · 1hr" }]);
                 if (lp.credit) { setTotL(c => Math.max(0, c - 1)); setCreditUsage(p => [...p, { date: fmtDate(new Date()), desc: "Lesson with " + coach?.n }]); }
                 setLesHistory(p => [...p, { type: "lesson", desc: "Lesson with " + coach?.n, date: fmtDate(new Date()), amt: lp.credit ? "1 credit" : lp.label }]);
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bayAssigned, date: lesDate ? lesDate.toISOString().split("T")[0] : "", start_time: lesTime, duration_slots: 2, status: "confirmed", type: "lesson" }]);
                 if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
                 fire("Lesson booked!"); resetLes(); setTab("home");
-              }}>Confirm & Book</button>
-            </div>
+              };
+              if (needsCard) return (
+                <div style={{ marginTop: 16 }}>
+                  <p style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>Enter your card — it will be saved to your profile for future bookings.</p>
+                  <AddCardForm
+                    appId={SQUARE_APP_ID}
+                    locationId={SQUARE_LOCATION_ID}
+                    saveLabel={`Confirm & Book · ${lp.label}`}
+                    onCancel={() => setLesStep(0)}
+                    onSave={async ({ nonce, brand, last4, exp }) => {
+                      if (!sqCustId) return;
+                      const res = await square("card.save", { customer_id: sqCustId, nonce });
+                      if (res?.card) {
+                        const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: res.card.id });
+                        setCards([saved?.[0] ? { id: saved[0].id, brand, last4, exp, square_card_id: res.card.id } : { id: Date.now(), brand, last4, exp, square_card_id: res.card.id }]);
+                        await doBook(brand + " ···" + last4);
+                      } else { fire("Could not save card. Please try again."); }
+                    }}
+                  />
+                </div>
+              );
+              return (
+                <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                  <button style={S.b2} onClick={() => setLesStep(0)}>Back</button>
+                  <button style={{ ...S.b1, flex: 2, background: "#00305B", opacity: lesAgree ? 1 : 0.4 }} onClick={async () => { if (!lesAgree) return; await doBook(); }}>Confirm & Book</button>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </>;
@@ -1411,16 +1453,11 @@ export default function BirdieGolfWebsite() {
 
     return <>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 14 }}>Lessons</h2>
-      {!hasCard && <div style={{ background: "#FFF0F0", border: "1px solid #E0392822", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: "#E03928", marginBottom: 4 }}>Payment method required</p>
-        <p style={{ fontSize: 12, color: "#E03928cc", marginBottom: 10 }}>Add a card to your profile before booking lessons or purchasing packages.</p>
-        <button style={{ ...S.b1, background: "#E03928", maxWidth: 180, fontSize: 13, padding: "10px 14px" }} onClick={() => setTab("profile")}>Add Card</button>
-      </div>}
-      {hasCard && <div style={S.tabs}>
+      <div style={S.tabs}>
         {["book", "packages"].map(t => <button key={t} style={{ ...S.tabBtn, ...(lesTab === t ? S.tabSel : {}) }} onClick={() => { setLesTab(t); setSelPkg(null); setPkgCoach(null); }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
-      </div>}
+      </div>
 
-      {hasCard && lesTab === "book" && <>
+      {lesTab === "book" && <>
         {totL > 0 && <div style={{ ...S.creditBanner, background: "rgba(0,48,91,0.07)", borderColor: "rgba(0,48,91,0.2)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ background: "#00305B", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{totL}</span><span style={{ fontSize: 13, fontWeight: 600, color: "#00305B" }}>Lesson Credits Available</span></div>
           <p style={{ fontSize: 11, color: "#888", marginTop: 4 }}>{creditPkg} · {creditCoach?.n}</p>
@@ -1472,7 +1509,7 @@ export default function BirdieGolfWebsite() {
         }}>Continue to Confirm</button>}
       </>}
 
-      {hasCard && lesTab === "packages" && <>
+      {lesTab === "packages" && <>
         {totL > 0 ? <>
           <div style={S.creditDetailCard}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><p style={{ fontSize: 15, fontWeight: 700 }}>{creditPkg}</p><span style={{ background: "#00305B", color: "#fff", fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 10 }}>{totL}/{maxL}</span></div>
@@ -1494,20 +1531,12 @@ export default function BirdieGolfWebsite() {
           </> : !pkgCoach ? <>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><button style={S.bk} onClick={() => { setSelPkg(null); setPkgCoach(null); }}>{X.chevL(18)}</button><div><p style={{ fontSize: 15, fontWeight: 700 }}>{selPkg.name}</p><p style={{ fontSize: 12, color: "#888" }}>{selPkg.credits} credits · ${selPkg.price}</p></div></div>
             <h4 style={S.stepH}>Select Instructor</h4><div style={{ display: "flex", gap: 10 }}>{COACHES.map(c => <CoachCard key={c.id} c={c} sel={pkgCoach === c.id} locked={false} onClick={() => setPkgCoach(c.id)} />)}</div>
-          </> : (() => { const coach = COACHES.find(c => c.id === pkgCoach); return <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><button style={S.bk} onClick={() => setPkgCoach(null)}>{X.chevL(18)}</button><div><p style={{ fontSize: 15, fontWeight: 700 }}>{selPkg.name}</p><p style={{ fontSize: 12, color: "#888" }}>{selPkg.credits} credits · {coach?.n}</p></div></div>
-            <div style={S.confCard}>
-                {[["Package", selPkg.name], ["Credits", selPkg.credits + " lessons"], ["Instructor", coach?.n]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
-                <div style={S.confDiv} />
-                <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700 }}>${selPkg.price}</span></div>
-                <p style={{ fontSize: 11, color: "#888", marginTop: 10, lineHeight: 1.5 }}>⏱ Expires {selPkg.months} month{selPkg.months > 1 ? "s" : ""} from purchase date.</p>
-              </div>
-            <button style={{ ...S.b1, background: "#00305B", marginTop: 14 }} onClick={async () => {
+          </> : (() => { const coach = COACHES.find(c => c.id === pkgCoach);
+            const doPkgPurchase = async (coach) => {
               const today = new Date(), expDate = new Date(today); expDate.setMonth(expDate.getMonth() + (selPkg.months || 3));
               const fmtShort = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
               const existingPkg = await sb.get("lesson_packages", `customer_id=eq.${customerId}&status=eq.active&select=id`);
               if (existingPkg?.length > 0) { fire("You already have an active lesson package. Use your remaining credits first."); setSelPkg(null); setPkgCoach(null); return; }
-              // Charge via Square catalog item
               let sqPaymentId = null;
               if (sqCustId && cards?.[0]?.square_card_id) {
                 const isMem = !!tier && tier !== "none";
@@ -1535,7 +1564,41 @@ export default function BirdieGolfWebsite() {
                 expiry: fmtShort(expDate),
               });
               fire("Package purchased!"); setSelPkg(null); setPkgCoach(null);
-            }}>Buy</button></div>; })()}
+            };
+            return <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><button style={S.bk} onClick={() => setPkgCoach(null)}>{X.chevL(18)}</button><div><p style={{ fontSize: 15, fontWeight: 700 }}>{selPkg.name}</p><p style={{ fontSize: 12, color: "#888" }}>{selPkg.credits} credits · {coach?.n}</p></div></div>
+              <div style={S.confCard}>
+                  {[["Package", selPkg.name], ["Credits", selPkg.credits + " lessons"], ["Instructor", coach?.n]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
+                  <div style={S.confDiv} />
+                  <div style={S.confRow}><span style={{ ...S.confL, fontWeight: 700 }}>Total</span><span style={{ ...S.confV, fontSize: 15, fontWeight: 700 }}>${selPkg.price}</span></div>
+                  <p style={{ fontSize: 11, color: "#888", marginTop: 10, lineHeight: 1.5 }}>⏱ Expires {selPkg.months} month{selPkg.months > 1 ? "s" : ""} from purchase date.</p>
+                </div>
+              {cards.length === 0 ? (
+                <div style={{ marginTop: 16, background: "#f8f8f6", border: "1px solid #e0ddd6", borderRadius: 14, padding: 16 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "#072814", marginBottom: 4 }}>Save a card to complete purchase</p>
+                  <p style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>Your card will be saved to your profile for future use.</p>
+                  <AddCardForm
+                    appId={SQUARE_APP_ID}
+                    locationId={SQUARE_LOCATION_ID}
+                    saveLabel={`Confirm & Buy · $${selPkg.price}`}
+                    onCancel={() => setPkgCoach(null)}
+                    onSave={async ({ nonce, brand, last4, exp }) => {
+                      if (!sqCustId) return;
+                      const res = await square("card.save", { customer_id: sqCustId, nonce });
+                      if (res?.card) {
+                        const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: res.card.id });
+                        const newCard = saved?.[0] ? { id: saved[0].id, brand, last4, exp, square_card_id: res.card.id } : { id: Date.now(), brand, last4, exp, square_card_id: res.card.id };
+                        setCards([newCard]);
+                        fire("Card saved! Completing your purchase…");
+                        await doPkgPurchase(coach);
+                      } else { fire("Could not save card. Please try again."); }
+                    }}
+                  />
+                </div>
+              ) : (
+                <button style={{ ...S.b1, background: "#00305B", marginTop: 14 }} onClick={() => doPkgPurchase(coach)}>Buy</button>
+              )}
+            </div>; })()}
         </>}
       </>}
 
