@@ -750,6 +750,14 @@ export default function BirdieGolfWebsite() {
             setOtpSending(false);
           }
         }}>{otpSending ? "Sending code…" : "Continue"}</button>
+        <div style={{ marginTop: 20, textAlign: "center" }}>
+          <p style={{ fontSize: 12, color: "#aaa", lineHeight: 1.7, margin: 0 }}>
+            Need help?{" "}
+            <a href="https://wa.me/13054221222" target="_blank" rel="noopener noreferrer" style={{ color: "#3AE58D", fontWeight: 600, textDecoration: "none" }}>Contact us via WhatsApp</a>
+            {" "}or call us at{" "}
+            <a href="tel:+13054561449" style={{ color: "#3AE58D", fontWeight: 600, textDecoration: "none" }}>+1 (305) 456-4149</a>
+          </p>
+        </div>
         <div style={LS.footer}>
           <span style={LS.footerText}>45 NE 26th St, Unit C, Miami, FL 33145</span>
           <span style={LS.footerText}>Mon–Fri 8am–10pm · Sat–Sun 9am–9pm</span>
@@ -772,7 +780,7 @@ export default function BirdieGolfWebsite() {
           placeholder="Enter 6-digit code"
           value={otpCode}
           onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
-          style={{ width: "100%", padding: "14px 16px", borderRadius: 10, border: "1.5px solid #ddd", fontSize: 16, letterSpacing: 4, textAlign: "center", fontFamily: "monospace", outline: "none", boxSizing: "border-box", marginBottom: 4 }}
+          style={{ width: "100%", padding: "14px 16px", borderRadius: 10, border: "1.5px solid #ddd", fontSize: 15, letterSpacing: 6, textAlign: "center", fontFamily: ff, outline: "none", boxSizing: "border-box", marginBottom: 4 }}
           autoComplete="one-time-code"
           autoFocus
         />
@@ -1542,11 +1550,20 @@ export default function BirdieGolfWebsite() {
         </> : <>
           {!selPkg ? <>
             <h4 style={S.stepH}>Select a Package</h4><p style={{ fontSize: 12, color: "#888", marginBottom: 14 }}>Purchase a lesson package to save on hourly rates.</p>
-            {(() => { const isMem = tier && tier !== "none"; return [{ name: "3-Hour Package", credits: 3, price: isMem ? 300 : 360, months: 2 }, { name: "5-Hour Package", credits: 5, price: isMem ? 400 : 500, months: 3 }].map(p =>
-              <button key={p.name} style={{ ...S.pkgCard, cursor: "pointer", textAlign: "left", width: "100%" }} onClick={() => setSelPkg(p)}>
-                <div><p style={{ fontSize: 15, fontWeight: 700 }}>{p.name}</p><p style={{ fontSize: 12, color: "#888" }}>{p.credits} lesson credits</p></div>
-                <p style={{ fontSize: 18, fontWeight: 700, marginTop: 10 }}>${p.price}</p></button>); })()}
-            {!(tier && tier !== "none") && <p style={{ fontSize: 12, color: "#888", marginTop: 12, lineHeight: 1.6 }}>Members pay $300 and $400 for these packages. <span style={{ color: "#072814", fontWeight: 600 }}>Join a membership</span> to unlock member pricing.</p>}
+            {(() => { const isMem = tier && tier !== "none";
+              const pkgs = [{ name: "3-Hour Package", credits: 3, price: isMem ? 300 : 360, memberPrice: 300, months: 2 }, { name: "5-Hour Package", credits: 5, price: isMem ? 400 : 500, memberPrice: 400, months: 3 }];
+              return pkgs.map(p => <div key={p.name} style={{ ...S.pkgCard, marginBottom: 12 }}>
+                <button style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", width: "100%", padding: 0, fontFamily: ff }} onClick={() => setSelPkg(p)}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div><p style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{p.name}</p><p style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{p.credits} lesson credits</p></div>
+                    <p style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>${p.price}</p>
+                  </div>
+                </button>
+                {!isMem && <div style={{ marginTop: 12, paddingTop: 12, borderTop: "0.5px solid #f0ede8", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <p style={{ fontSize: 12, color: "#888", margin: 0 }}>Members pay <strong style={{ color: "#072814" }}>${p.memberPrice}</strong></p>
+                  <button style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "#072814", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: ff, flexShrink: 0 }} onClick={() => { setTab("membership"); setMemTab("memberships"); }}>Join now →</button>
+                </div>}
+              </div>); })()}
           </> : !pkgCoach ? <>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><button style={S.bk} onClick={() => { setSelPkg(null); setPkgCoach(null); }}>{X.chevL(18)}</button><div><p style={{ fontSize: 15, fontWeight: 700 }}>{selPkg.name}</p><p style={{ fontSize: 12, color: "#888" }}>{selPkg.credits} credits · ${selPkg.price}</p></div></div>
             <h4 style={S.stepH}>Select Instructor</h4><div style={{ display: "flex", gap: 10 }}>{COACHES.map(c => <CoachCard key={c.id} c={c} sel={pkgCoach === c.id} locked={false} onClick={() => setPkgCoach(c.id)} />)}</div>
