@@ -1696,6 +1696,7 @@ export default function BirdieGolfWebsite() {
         const total = subtotal + tax;
         const cardLabel = cards?.[0] ? (cards[0].brand + " ..." + cards[0].last4) : "card on file";
         const sqCardId = cards?.[0]?.square_card_id;
+        const [memProcessing, setMemProcessing] = React.useState(false);
         return <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
           <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{t?.n} Membership</h3>
           <p style={{ fontSize: 13, color: "#555", marginBottom: 16 }}>Joining the {t?.n} plan. Here is what you will be charged today:</p>
@@ -1724,7 +1725,9 @@ export default function BirdieGolfWebsite() {
           <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}. Renews monthly at ${t?.price}/mo + tax.</p>
           <div style={{ display: "flex", gap: 10 }}>
             <button style={S.b2} onClick={() => setMemModal(null)}>Cancel</button>
-            <button style={{ ...S.b1, flex: 2, background: t?.c }} onClick={async () => {
+            <button style={{ ...S.b1, flex: 2, background: t?.c, opacity: memProcessing ? 0.5 : 1 }} disabled={memProcessing} onClick={async () => {
+              if (memProcessing) return;
+              setMemProcessing(true);
               let sqPaymentId = null;
               if (total > 0 && sqCustId && sqCardId) {
                 const chargeRes = await square("membership.charge", {
@@ -1761,7 +1764,8 @@ export default function BirdieGolfWebsite() {
                 enrollment_fee: ef > 0 ? "$" + ef + " (one-time)" : null,
               });
               fire("Welcome to " + t?.n + "!"); setMemModal(null); setMemTab("current");
-            }}>Confirm and Pay ${total.toFixed(2)}</button>
+              setMemProcessing(false);
+            }}>{ memProcessing ? "Processing…" : `Confirm and Pay $${total.toFixed(2)}` }</button>
           </div>
         </div></div>;
       })()}
