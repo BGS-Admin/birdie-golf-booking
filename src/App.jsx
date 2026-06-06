@@ -453,6 +453,10 @@ export default function BirdieGolfWebsite() {
   const [bkBay, setBkBay] = useState(null);
   const [ebSlotsToday, setEbSlotsToday] = useState(0); // Early Birdie slots already booked today
   const [bkAgree, setBkAgree] = useState(false);
+  const [bkProcessing, setBkProcessing] = useState(false);
+  const [lesProcessing, setLesProcessing] = useState(false);
+  const [pkgProcessing, setPkgProcessing] = useState(false);
+  const [memProcessing, setMemProcessing] = useState(false);
   const [bkOverridePastRenewal, setBkOverridePastRenewal] = useState(false);
 
   /* Lesson booking */
@@ -493,9 +497,9 @@ export default function BirdieGolfWebsite() {
   const creditCoach = COACHES.find(c => c.id === creditCoachId);
   const tierData = TIERS[tier] || null;
   const resetPromo = () => { setPromoOpen(false); setPromoInput(""); setPromoLoading(false); setPromoApplied(null); };
-  const resetBk = () => { setBkStep(0); setBkDate(null); setBkDur(null); setBkTime(null); setBkBay(null); setBkAgree(false); setBkOverridePastRenewal(false); setEbSlotsToday(0); resetPromo(); };
+  const resetBk = () => { setBkStep(0); setBkDate(null); setBkDur(null); setBkTime(null); setBkBay(null); setBkAgree(false); setBkOverridePastRenewal(false); setEbSlotsToday(0); setBkProcessing(false); resetPromo(); };
   const hasCard = cards.length > 0;
-  const resetLes = () => { setLesStep(0); setLesDate(null); setLesTime(null); setLesCoach(null); setLesAgree(false); resetPromo(); };
+  const resetLes = () => { setLesStep(0); setLesDate(null); setLesTime(null); setLesCoach(null); setLesAgree(false); setLesProcessing(false); resetPromo(); };
 
   /* ─── Load data from Supabase on mount ─── */
   useEffect(() => {
@@ -1240,7 +1244,6 @@ export default function BirdieGolfWebsite() {
               const recalcTax = price.tax > 0 ? Math.round(discountedSubtotal * 0.07 * 100) / 100 : 0;
               const bayTotal = promoApplied ? discountedSubtotal + recalcTax : price.total;
               const needsCard = bayTotal > 0 && cards.length === 0;
-              const [bkProcessing, setBkProcessing] = React.useState(false);
               const doBook = async (cardLabel) => {
                 if (bkProcessing) return;
                 setBkProcessing(true);
@@ -1418,7 +1421,6 @@ export default function BirdieGolfWebsite() {
             </div>
             {(() => {
               const needsCard = lp.total > 0 && cards.length === 0;
-              const [lesProcessing, setLesProcessing] = React.useState(false);
               const doBook = async (cardLabel) => {
                 if (lesProcessing) return;
                 setLesProcessing(true);
@@ -1569,7 +1571,6 @@ export default function BirdieGolfWebsite() {
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><button style={S.bk} onClick={() => { setSelPkg(null); setPkgCoach(null); }}>{X.chevL(18)}</button><div><p style={{ fontSize: 15, fontWeight: 700 }}>{selPkg.name}</p><p style={{ fontSize: 12, color: "#888" }}>{selPkg.credits} credits · ${selPkg.price}</p></div></div>
             <h4 style={S.stepH}>Select Instructor</h4><div style={{ display: "flex", gap: 10 }}>{COACHES.map(c => <CoachCard key={c.id} c={c} sel={pkgCoach === c.id} locked={false} onClick={() => setPkgCoach(c.id)} />)}</div>
           </> : (() => { const coach = COACHES.find(c => c.id === pkgCoach);
-            const [pkgProcessing, setPkgProcessing] = React.useState(false);
             const doPkgPurchase = async (coach) => {
               if (pkgProcessing) return;
               setPkgProcessing(true);
@@ -1724,7 +1725,6 @@ export default function BirdieGolfWebsite() {
         const total = subtotal + tax;
         const cardLabel = cards?.[0] ? (cards[0].brand + " ..." + cards[0].last4) : "card on file";
         const sqCardId = cards?.[0]?.square_card_id;
-        const [memProcessing, setMemProcessing] = React.useState(false);
         return <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
           <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{t?.n} Membership</h3>
           <p style={{ fontSize: 13, color: "#555", marginBottom: 16 }}>Joining the {t?.n} plan. Here is what you will be charged today:</p>
