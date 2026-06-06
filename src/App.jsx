@@ -1231,7 +1231,10 @@ export default function BirdieGolfWebsite() {
               const recalcTax = price.tax > 0 ? Math.round(discountedSubtotal * 0.07 * 100) / 100 : 0;
               const bayTotal = promoApplied ? discountedSubtotal + recalcTax : price.total;
               const needsCard = bayTotal > 0 && cards.length === 0;
+              const [bkProcessing, setBkProcessing] = React.useState(false);
               const doBook = async (cardLabel) => {
+                if (bkProcessing) return;
+                setBkProcessing(true);
                 await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: bayTotal, credits: price.credits, disc: price.disc, isPeak: isPeak(bkDate, bkTime), cardLabel: cardLabel || (cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card"), promoSavings: promoApplied?.savings || 0, promoDiscountId: promoApplied?.discount_id || null, promoCatalogId: promoApplied?.promo_catalog_id || null, promoCode: promoApplied?.code || null });
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? bkDate.toISOString().split("T")[0] : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
                 if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
@@ -1260,7 +1263,7 @@ export default function BirdieGolfWebsite() {
               ) : (
                 <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
                   <button style={S.b2} onClick={() => setBkStep(0)}>Back</button>
-                  <button style={{ ...S.b1, flex: 2, opacity: bkAgree ? 1 : 0.4 }} onClick={async () => { if (!bkAgree) return; await doBook(); }}>Confirm & Pay</button>
+                  <button style={{ ...S.b1, flex: 2, opacity: (bkAgree && !bkProcessing) ? 1 : 0.4 }} disabled={!bkAgree || bkProcessing} onClick={async () => { if (!bkAgree || bkProcessing) return; await doBook(); }}>{bkProcessing ? "Processing…" : "Confirm & Pay"}</button>
                 </div>
               );
             })()}
@@ -1406,7 +1409,10 @@ export default function BirdieGolfWebsite() {
             </div>
             {(() => {
               const needsCard = lp.total > 0 && cards.length === 0;
+              const [lesProcessing, setLesProcessing] = React.useState(false);
               const doBook = async (cardLabel) => {
+                if (lesProcessing) return;
+                setLesProcessing(true);
                 await saveLessonBooking({ bay: bayAssigned, date: lesDate, time: lesTime, coachId: lesCoach, coachName: coach?.n, total: lp.total, credit: lp.credit, cardLabel: cardLabel || (cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card") });
                 setUpcomingBk(p => [...p, { type: "lesson", label: "Lesson · " + coach?.n, sub: fmtDate(lesDate) + " · " + lesTime + " · 1hr" }]);
                 if (lp.credit) { setTotL(c => Math.max(0, c - 1)); setCreditUsage(p => [...p, { date: fmtDate(new Date()), desc: "Lesson with " + coach?.n }]); }
@@ -1438,7 +1444,7 @@ export default function BirdieGolfWebsite() {
               return (
                 <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
                   <button style={S.b2} onClick={() => setLesStep(0)}>Back</button>
-                  <button style={{ ...S.b1, flex: 2, background: "#00305B", opacity: lesAgree ? 1 : 0.4 }} onClick={async () => { if (!lesAgree) return; await doBook(); }}>Confirm & Book</button>
+                  <button style={{ ...S.b1, flex: 2, background: "#00305B", opacity: (lesAgree && !lesProcessing) ? 1 : 0.4 }} disabled={!lesAgree || lesProcessing} onClick={async () => { if (!lesAgree || lesProcessing) return; await doBook(); }}>{lesProcessing ? "Processing…" : "Confirm & Book"}</button>
                 </div>
               );
             })()}
@@ -1545,7 +1551,10 @@ export default function BirdieGolfWebsite() {
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><button style={S.bk} onClick={() => { setSelPkg(null); setPkgCoach(null); }}>{X.chevL(18)}</button><div><p style={{ fontSize: 15, fontWeight: 700 }}>{selPkg.name}</p><p style={{ fontSize: 12, color: "#888" }}>{selPkg.credits} credits · ${selPkg.price}</p></div></div>
             <h4 style={S.stepH}>Select Instructor</h4><div style={{ display: "flex", gap: 10 }}>{COACHES.map(c => <CoachCard key={c.id} c={c} sel={pkgCoach === c.id} locked={false} onClick={() => setPkgCoach(c.id)} />)}</div>
           </> : (() => { const coach = COACHES.find(c => c.id === pkgCoach);
+            const [pkgProcessing, setPkgProcessing] = React.useState(false);
             const doPkgPurchase = async (coach) => {
+              if (pkgProcessing) return;
+              setPkgProcessing(true);
               const today = new Date(), expDate = new Date(today); expDate.setMonth(expDate.getMonth() + (selPkg.months || 3));
               const fmtShort = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
               const existingPkg = await sb.get("lesson_packages", `customer_id=eq.${customerId}&status=eq.active&select=id`);
@@ -1577,6 +1586,7 @@ export default function BirdieGolfWebsite() {
                 expiry: fmtShort(expDate),
               });
               fire("Package purchased!"); setSelPkg(null); setPkgCoach(null);
+              setPkgProcessing(false);
             };
             return <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><button style={S.bk} onClick={() => setPkgCoach(null)}>{X.chevL(18)}</button><div><p style={{ fontSize: 15, fontWeight: 700 }}>{selPkg.name}</p><p style={{ fontSize: 12, color: "#888" }}>{selPkg.credits} credits · {coach?.n}</p></div></div>
@@ -1609,7 +1619,7 @@ export default function BirdieGolfWebsite() {
                   />
                 </div>
               ) : (
-                <button style={{ ...S.b1, background: "#00305B", marginTop: 14 }} onClick={() => doPkgPurchase(coach)}>Buy</button>
+                <button style={{ ...S.b1, background: "#00305B", marginTop: 14, opacity: pkgProcessing ? 0.5 : 1 }} disabled={pkgProcessing} onClick={() => doPkgPurchase(coach)}>{pkgProcessing ? "Processing…" : "Buy"}</button>
               )}
             </div>; })()}
         </>}
