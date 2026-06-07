@@ -596,7 +596,10 @@ export default function BirdieGolfWebsite() {
           promo_catalog_id: bookingData.promoCatalogId || null,
         });
         sqPaymentId = chargeRes?.payment?.id;
-        if (chargeRes?.error) { console.error("Square charge failed:", chargeRes.error); }
+        if (!sqPaymentId) {
+          fire("Payment failed — please check your card and try again.");
+          return;
+        }
       } else if (bookingData.credits > 0) {
         // $0 credit booking — create $0 order in Square for member credit utilization tracking
         const orderRes = await square("order.create", {
@@ -1261,9 +1264,24 @@ export default function BirdieGolfWebsite() {
                     saveLabel={`Confirm & Pay $${bayTotal.toFixed(2)}`}
                     onCancel={() => setBkStep(0)}
                     onSave={async ({ nonce, brand, last4, exp }) => {
-                      if (!sqCustId) return;
-                      const res = await square("card.save", { customer_id: sqCustId, nonce });
-                      if (res?.card) {
+                      let activeSqCustId = sqCustId;
+                      if (!activeSqCustId) {
+                        // Customer missing Square ID — create on the fly then retry
+                        const sqR = await square("customer.search", { phone: String(customerId), email: "" });
+                        let foundId = sqR?.customers?.[0]?.id;
+                        if (!foundId) {
+                          const created = await square("customer.create", { first_name: onbF, last_name: onbL, phone: String(customerId), email: profEmail || onbE, supabase_id: customerId });
+                          foundId = created?.customer?.id;
+                        }
+                        if (foundId) {
+                          setSqCustId(foundId);
+                          activeSqCustId = foundId;
+                          await sb.patch("customers", `id=eq.${customerId}`, { square_customer_id: foundId });
+                        }
+                      }
+                      if (!activeSqCustId) { fire("Could not link your account. Please contact us."); return; }
+                      const res = await square("card.create", { square_customer_id: activeSqCustId, source_id: nonce });
+                      if (res?.card?.id) {
                         const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: res.card.id });
                         const newCard = saved?.[0] ? { id: saved[0].id, brand, last4, exp, square_card_id: res.card.id } : { id: Date.now(), brand, last4, exp, square_card_id: res.card.id };
                         setCards([newCard]);
@@ -1441,9 +1459,24 @@ export default function BirdieGolfWebsite() {
                     saveLabel={`Confirm & Book · ${lp.label}`}
                     onCancel={() => setLesStep(0)}
                     onSave={async ({ nonce, brand, last4, exp }) => {
-                      if (!sqCustId) return;
-                      const res = await square("card.save", { customer_id: sqCustId, nonce });
-                      if (res?.card) {
+                      let activeSqCustId = sqCustId;
+                      if (!activeSqCustId) {
+                        // Customer missing Square ID — create on the fly then retry
+                        const sqR = await square("customer.search", { phone: String(customerId), email: "" });
+                        let foundId = sqR?.customers?.[0]?.id;
+                        if (!foundId) {
+                          const created = await square("customer.create", { first_name: onbF, last_name: onbL, phone: String(customerId), email: profEmail || onbE, supabase_id: customerId });
+                          foundId = created?.customer?.id;
+                        }
+                        if (foundId) {
+                          setSqCustId(foundId);
+                          activeSqCustId = foundId;
+                          await sb.patch("customers", `id=eq.${customerId}`, { square_customer_id: foundId });
+                        }
+                      }
+                      if (!activeSqCustId) { fire("Could not link your account. Please contact us."); return; }
+                      const res = await square("card.create", { square_customer_id: activeSqCustId, source_id: nonce });
+                      if (res?.card?.id) {
                         const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: res.card.id });
                         setCards([saved?.[0] ? { id: saved[0].id, brand, last4, exp, square_card_id: res.card.id } : { id: Date.now(), brand, last4, exp, square_card_id: res.card.id }]);
                         await doBook(brand + " ···" + last4);
@@ -1625,9 +1658,24 @@ export default function BirdieGolfWebsite() {
                     saveLabel={`Confirm & Buy · $${selPkg.price}`}
                     onCancel={() => setPkgCoach(null)}
                     onSave={async ({ nonce, brand, last4, exp }) => {
-                      if (!sqCustId) return;
-                      const res = await square("card.save", { customer_id: sqCustId, nonce });
-                      if (res?.card) {
+                      let activeSqCustId = sqCustId;
+                      if (!activeSqCustId) {
+                        // Customer missing Square ID — create on the fly then retry
+                        const sqR = await square("customer.search", { phone: String(customerId), email: "" });
+                        let foundId = sqR?.customers?.[0]?.id;
+                        if (!foundId) {
+                          const created = await square("customer.create", { first_name: onbF, last_name: onbL, phone: String(customerId), email: profEmail || onbE, supabase_id: customerId });
+                          foundId = created?.customer?.id;
+                        }
+                        if (foundId) {
+                          setSqCustId(foundId);
+                          activeSqCustId = foundId;
+                          await sb.patch("customers", `id=eq.${customerId}`, { square_customer_id: foundId });
+                        }
+                      }
+                      if (!activeSqCustId) { fire("Could not link your account. Please contact us."); return; }
+                      const res = await square("card.create", { square_customer_id: activeSqCustId, source_id: nonce });
+                      if (res?.card?.id) {
                         const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: res.card.id });
                         const newCard = saved?.[0] ? { id: saved[0].id, brand, last4, exp, square_card_id: res.card.id } : { id: Date.now(), brand, last4, exp, square_card_id: res.card.id };
                         setCards([newCard]);
@@ -1750,51 +1798,84 @@ export default function BirdieGolfWebsite() {
             <p style={{ fontSize: 12, fontWeight: 700, color: "#072814", marginBottom: 4 }}>Time Restriction</p>
             <p style={{ fontSize: 12, color: "#555", lineHeight: 1.5 }}>Early Birdie credits apply Mon–Fri 8am–4pm only. Bookings outside that window are charged at the full hourly rate + tax.</p>
           </div>}
-          <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}. Renews monthly at ${t?.price}/mo + tax.</p>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button style={S.b2} onClick={() => setMemModal(null)}>Cancel</button>
-            <button style={{ ...S.b1, flex: 2, background: t?.c, opacity: memProcessing ? 0.5 : 1 }} disabled={memProcessing} onClick={async () => {
-              if (memProcessing) return;
-              setMemProcessing(true);
-              let sqPaymentId = null;
-              if (total > 0 && sqCustId && sqCardId) {
-                const chargeRes = await square("membership.charge", {
-                  square_customer_id: sqCustId,
-                  card_id: sqCardId,
-                  tier: memModal.to,
-                  // enrollment_fee handled automatically by Square modifier on membership item
-                });
-                sqPaymentId = chargeRes?.payment?.id;
-                if (chargeRes?.error) { console.error("Membership charge failed:", chargeRes.error); }
-              }
-              // Guard: re-check customer has no active membership before writing
-              const freshCust = await sb.get("customers", `id=eq.${customerId}&select=tier`);
-              if (freshCust?.[0]?.tier && freshCust[0].tier !== "none") {
-                fire("You already have an active membership."); setMemModal(null); return;
-              }
-              const rd = new Date(); rd.setMonth(rd.getMonth() + 1);
-              await sb.patch("customers", "id=eq." + customerId, { tier: memModal.to, bay_credits_remaining: t?.hrs === -1 ? 999 : (t?.hrs || 0), bay_credits_total: t?.hrs === -1 ? 999 : (t?.hrs || 0), member_since: dateKey(new Date()), renewal_date: dateKey(rd) });
-              await sb.post("membership_history", { customer_id: customerId, action: "join", tier: memModal.to, amount: total, date: dateKey(new Date()) });
-              await sb.post("transactions", { customer_id: customerId, description: t?.n + " Membership - First Month", date: dateKey(new Date()), amount: t?.price, payment_label: cardLabel, square_payment_id: sqPaymentId });
-              if (ef > 0) await sb.post("transactions", { customer_id: customerId, description: t?.n + " Enrollment Fee (one-time)", date: dateKey(new Date()), amount: ef, payment_label: cardLabel, square_payment_id: sqPaymentId });
-              await sb.post("transactions", { customer_id: customerId, description: "Tax (7%)", date: dateKey(new Date()), amount: tax, payment_label: cardLabel, square_payment_id: sqPaymentId });
-              setTier(memModal.to);
-              setBayCredits(t?.hrs === -1 ? 999 : (t?.hrs || 0));
-              setMemberSince(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
-              setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
-              loadUserData(customerId);
-              sendEmail("membership", {
-                customer_email: profEmail || onbE,
-                customer_name: (onbF + " " + onbL).trim(),
-                plan: t?.n + " Plan",
-                price: "$" + t?.price + "/mo",
-                renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
-                enrollment_fee: ef > 0 ? "$" + ef + " (one-time)" : null,
-              });
-              fire("Welcome to " + t?.n + "!"); setMemModal(null); setMemTab("current");
-              setMemProcessing(false);
-            }}>{ memProcessing ? "Processing…" : `Confirm and Pay $${total.toFixed(2)}` }</button>
-          </div>
+          {cards.length === 0 ? (
+            <div style={{ marginTop: 4 }}>
+              <p style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>Enter your card — it will be saved to your profile for future use.</p>
+              <AddCardForm
+                appId={SQUARE_APP_ID}
+                locationId={SQUARE_LOCATION_ID}
+                saveLabel={`Confirm & Pay $${total.toFixed(2)}`}
+                onCancel={() => setMemModal(null)}
+                onSave={async ({ nonce, brand, last4, exp }) => {
+                  if (memProcessing) return;
+                  setMemProcessing(true);
+                  let activeSqCustId = sqCustId;
+                  if (!activeSqCustId) {
+                    const sqR = await square("customer.search", { phone: String(customerId), email: "" });
+                    let foundId = sqR?.customers?.[0]?.id;
+                    if (!foundId) { const cr = await square("customer.create", { first_name: onbF, last_name: onbL, phone: String(customerId), email: profEmail || onbE, supabase_id: customerId }); foundId = cr?.customer?.id; }
+                    if (foundId) { setSqCustId(foundId); activeSqCustId = foundId; await sb.patch("customers", `id=eq.${customerId}`, { square_customer_id: foundId }); }
+                  }
+                  if (!activeSqCustId) { fire("Could not link your account. Please contact us."); setMemProcessing(false); return; }
+                  const res = await square("card.create", { square_customer_id: activeSqCustId, source_id: nonce });
+                  if (!res?.card?.id) { fire("Could not save card. Please try again."); setMemProcessing(false); return; }
+                  const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: res.card.id });
+                  const newCard = saved?.[0] ? { id: saved[0].id, brand, last4, exp, square_card_id: res.card.id } : { id: Date.now(), brand, last4, exp, square_card_id: res.card.id };
+                  setCards([newCard]);
+                  const newSqCardId = res.card.id;
+                  const newCardLabel = brand + " ..." + last4;
+                  const chargeRes = await square("membership.charge", { square_customer_id: activeSqCustId, card_id: newSqCardId, tier: memModal.to });
+                  const sqPaymentId = chargeRes?.payment?.id;
+                  if (!sqPaymentId) { fire("Payment failed. Please try again."); setMemProcessing(false); return; }
+                  const freshCust = await sb.get("customers", `id=eq.${customerId}&select=tier`);
+                  if (freshCust?.[0]?.tier && freshCust[0].tier !== "none") { fire("You already have an active membership."); setMemModal(null); setMemProcessing(false); return; }
+                  const rd = new Date(); rd.setMonth(rd.getMonth() + 1);
+                  await sb.patch("customers", "id=eq." + customerId, { tier: memModal.to, bay_credits_remaining: t?.hrs === -1 ? 999 : (t?.hrs || 0), bay_credits_total: t?.hrs === -1 ? 999 : (t?.hrs || 0), member_since: dateKey(new Date()), renewal_date: dateKey(rd) });
+                  await sb.post("membership_history", { customer_id: customerId, action: "join", tier: memModal.to, amount: total, date: dateKey(new Date()) });
+                  await sb.post("transactions", { customer_id: customerId, description: t?.n + " Membership - First Month", date: dateKey(new Date()), amount: t?.price, payment_label: newCardLabel, square_payment_id: sqPaymentId });
+                  if (ef > 0) await sb.post("transactions", { customer_id: customerId, description: t?.n + " Enrollment Fee (one-time)", date: dateKey(new Date()), amount: ef, payment_label: newCardLabel, square_payment_id: sqPaymentId });
+                  await sb.post("transactions", { customer_id: customerId, description: "Tax (7%)", date: dateKey(new Date()), amount: tax, payment_label: newCardLabel, square_payment_id: sqPaymentId });
+                  setTier(memModal.to); setBayCredits(t?.hrs === -1 ? 999 : (t?.hrs || 0));
+                  setMemberSince(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+                  setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+                  loadUserData(customerId);
+                  sendEmail("membership", { customer_email: profEmail || onbE, customer_name: (onbF + " " + onbL).trim(), plan: t?.n + " Plan", price: "$" + t?.price + "/mo", renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), enrollment_fee: ef > 0 ? "$" + ef + " (one-time)" : null });
+                  fire("Welcome to " + t?.n + "!"); setMemModal(null); setMemTab("current"); setMemProcessing(false);
+                }}
+              />
+            </div>
+          ) : (
+            <>
+              <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}. Renews monthly at ${t?.price}/mo + tax.</p>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button style={S.b2} onClick={() => setMemModal(null)}>Cancel</button>
+                <button style={{ ...S.b1, flex: 2, background: t?.c, opacity: memProcessing ? 0.5 : 1 }} disabled={memProcessing} onClick={async () => {
+                  if (memProcessing) return;
+                  setMemProcessing(true);
+                  let sqPaymentId = null;
+                  if (total > 0 && sqCustId && sqCardId) {
+                    const chargeRes = await square("membership.charge", { square_customer_id: sqCustId, card_id: sqCardId, tier: memModal.to });
+                    sqPaymentId = chargeRes?.payment?.id;
+                    if (!sqPaymentId) { fire("Payment failed. Please try again."); setMemProcessing(false); return; }
+                  }
+                  const freshCust = await sb.get("customers", `id=eq.${customerId}&select=tier`);
+                  if (freshCust?.[0]?.tier && freshCust[0].tier !== "none") { fire("You already have an active membership."); setMemModal(null); setMemProcessing(false); return; }
+                  const rd = new Date(); rd.setMonth(rd.getMonth() + 1);
+                  await sb.patch("customers", "id=eq." + customerId, { tier: memModal.to, bay_credits_remaining: t?.hrs === -1 ? 999 : (t?.hrs || 0), bay_credits_total: t?.hrs === -1 ? 999 : (t?.hrs || 0), member_since: dateKey(new Date()), renewal_date: dateKey(rd) });
+                  await sb.post("membership_history", { customer_id: customerId, action: "join", tier: memModal.to, amount: total, date: dateKey(new Date()) });
+                  await sb.post("transactions", { customer_id: customerId, description: t?.n + " Membership - First Month", date: dateKey(new Date()), amount: t?.price, payment_label: cardLabel, square_payment_id: sqPaymentId });
+                  if (ef > 0) await sb.post("transactions", { customer_id: customerId, description: t?.n + " Enrollment Fee (one-time)", date: dateKey(new Date()), amount: ef, payment_label: cardLabel, square_payment_id: sqPaymentId });
+                  await sb.post("transactions", { customer_id: customerId, description: "Tax (7%)", date: dateKey(new Date()), amount: tax, payment_label: cardLabel, square_payment_id: sqPaymentId });
+                  setTier(memModal.to); setBayCredits(t?.hrs === -1 ? 999 : (t?.hrs || 0));
+                  setMemberSince(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+                  setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+                  loadUserData(customerId);
+                  sendEmail("membership", { customer_email: profEmail || onbE, customer_name: (onbF + " " + onbL).trim(), plan: t?.n + " Plan", price: "$" + t?.price + "/mo", renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), enrollment_fee: ef > 0 ? "$" + ef + " (one-time)" : null });
+                  fire("Welcome to " + t?.n + "!"); setMemModal(null); setMemTab("current"); setMemProcessing(false);
+                }}>{ memProcessing ? "Processing…" : `Confirm and Pay $${total.toFixed(2)}` }</button>
+              </div>
+            </>
+          )}
         </div></div>;
       })()}
 
