@@ -572,7 +572,7 @@ export default function BirdieGolfWebsite() {
   const loadCards = useCallback(async (cid) => {
     if (!cid) return;
     const saved = await sb.get("payment_methods", `customer_id=eq.${cid}&select=*&order=created_at.asc`);
-    if (saved?.length) setCards(saved.map(c => ({ id: c.id, brand: c.brand, last4: c.last4, exp: c.exp })));
+    if (saved?.length) setCards(saved.map(c => ({ id: c.id, brand: c.brand, last4: c.last4, exp: c.exp, square_card_id: c.square_card_id })));
   }, []);
 
   /* ─── Email notifications ─── */
