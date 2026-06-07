@@ -1291,6 +1291,9 @@ export default function BirdieGolfWebsite() {
                         }
                       }
                       if (!activeSqCustId) { fire("Could not link your account. Please contact us."); return; }
+                      // Duplicate check
+                      const dupCheck = cards.find(c => c.last4 === last4 && c.brand === brand && c.exp === exp);
+                      if (dupCheck) { fire("This card is already saved to your profile."); return; }
                       const res = await square("card.create", { square_customer_id: activeSqCustId, source_id: nonce });
                       if (res?.card?.id) {
                         const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: res.card.id });
@@ -1490,6 +1493,9 @@ export default function BirdieGolfWebsite() {
                         }
                       }
                       if (!activeSqCustId) { fire("Could not link your account. Please contact us."); return; }
+                      // Duplicate check
+                      const dupCheck = cards.find(c => c.last4 === last4 && c.brand === brand && c.exp === exp);
+                      if (dupCheck) { fire("This card is already saved to your profile."); return; }
                       const res = await square("card.create", { square_customer_id: activeSqCustId, source_id: nonce });
                       if (res?.card?.id) {
                         const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: res.card.id });
@@ -1691,6 +1697,9 @@ export default function BirdieGolfWebsite() {
                         }
                       }
                       if (!activeSqCustId) { fire("Could not link your account. Please contact us."); return; }
+                      // Duplicate check
+                      const dupCheck = cards.find(c => c.last4 === last4 && c.brand === brand && c.exp === exp);
+                      if (dupCheck) { fire("This card is already saved to your profile."); return; }
                       const res = await square("card.create", { square_customer_id: activeSqCustId, source_id: nonce });
                       if (res?.card?.id) {
                         const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: res.card.id });
@@ -1993,6 +2002,9 @@ export default function BirdieGolfWebsite() {
           {cards.length > 1 ? <button style={S.delCardBtn} onClick={() => { setCards(p => p.filter(x => x.id !== c.id)); fire("Card removed"); }}>{X.trash(14)}</button> : <span style={{ fontSize: 10, color: "#aaa", fontWeight: 600 }}>Required</span>}</div>)}
         {addCard ? <AddCardForm appId={SQUARE_APP_ID} locationId={SQUARE_LOCATION_ID} onCancel={() => setAddCard(false)} onSave={async ({ nonce, brand, last4, exp }) => {
             // Tokenize via Square Web Payments SDK — nonce is a one-time secure token
+            // Duplicate check
+            const dupCard = cards.find(c => c.last4 === last4 && c.brand === brand && c.exp === exp);
+            if (dupCard) { fire("This card is already saved to your profile."); return; }
             const sqResult = await square("card.create", {
               square_customer_id: sqCustId,
               source_id: nonce,
