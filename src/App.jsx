@@ -53,6 +53,10 @@ const sb = {
 };
 
 /* ─── Square Integration ─── */
+// Analytics helpers
+const trackMeta = (event, params = {}) => { try { if (window.fbq) window.fbq("track", event, params); } catch(e) {} };
+const trackGA   = (event, params = {}) => { try { if (window.gtag) window.gtag("event", event, params); } catch(e) {} };
+
 const SQUARE_APP_ID = "sq0idp-prGGxuOWteVLYPoXaawqlQ";
 const SQUARE_LOCATION_ID = "LTNVZZ9PJH2K8";
 const SQUARE_FN_URL = `${SUPABASE_URL}/functions/v1/square-proxy`;
@@ -872,6 +876,8 @@ export default function BirdieGolfWebsite() {
           }
           setLogged(true); if (sbId) { loadUserData(sbId); loadCards(sbId); }
           fire("Welcome to Birdie Golf Studios, " + onbF + "!");
+          trackMeta("Lead", { content_name: "Signup" });
+          trackGA("sign_up", { method: "phone" });
         }}>Create Account</button>
       </>
     );
@@ -1253,6 +1259,8 @@ export default function BirdieGolfWebsite() {
                 await saveBayBooking({ bay: bkBay, date: bkDate, time: bkTime, durSlots: bkDur, total: bayTotal, credits: price.credits, disc: price.disc, isPeak: isPeak(bkDate, bkTime), cardLabel: cardLabel || (cards?.[0] ? (cards[0].brand + " ···" + cards[0].last4) : "Card"), promoSavings: promoApplied?.savings || 0, promoDiscountId: promoApplied?.discount_id || null, promoCatalogId: promoApplied?.promo_catalog_id || null, promoCode: promoApplied?.code || null });
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bkBay, date: bkDate ? bkDate.toISOString().split("T")[0] : "", start_time: bkTime, duration_slots: bkDur, status: "confirmed", type: "bay" }]);
                 if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
+                trackMeta("Purchase", { content_name: "Bay Booking", content_category: "Bay", value: bayTotal, currency: "USD" });
+                trackGA("purchase", { transaction_id: Date.now().toString(), value: bayTotal, currency: "USD", item_category: "bay" });
                 fire("Bay booked!"); resetBk(); setTab("home");
               };
               return needsCard ? (
@@ -1405,6 +1413,8 @@ export default function BirdieGolfWebsite() {
           if (sameDayCreditBks.length > 0 && cards.length === 0) { fire("Add a card to make additional same-day bookings."); setTab("profile"); return; }
         }
         setBkStep(1);
+              trackMeta("InitiateCheckout", { content_name: "Bay Booking", content_category: "Bay" });
+              trackGA("begin_checkout", { item_category: "bay" });
       }}>Continue to Confirm</button>}
     </>;
   };
@@ -1448,6 +1458,8 @@ export default function BirdieGolfWebsite() {
                 setLesHistory(p => [...p, { type: "lesson", desc: "Lesson with " + coach?.n, date: fmtDate(new Date()), amt: lp.credit ? "1 credit" : lp.label }]);
                 setAllBookings(p => [...p, { id: Date.now().toString(), bay: bayAssigned, date: lesDate ? lesDate.toISOString().split("T")[0] : "", start_time: lesTime, duration_slots: 2, status: "confirmed", type: "lesson" }]);
                 if (customerId) { const today = new Date(); today.setHours(0,0,0,0); const bks = await sb.get("bookings", `select=*&customer_id=eq.${customerId}&status=eq.confirmed&order=date.asc`); const upcoming = (bks || []).filter(b => new Date(b.date + "T23:59:59") >= today); setUpcomingBk(upcoming.map(b => ({ id: b.id, type: b.type, label: b.type === "lesson" ? "Lesson · " + (b.coach_name || "") : "Bay " + b.bay, sub: new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " · " + b.start_time + " · " + (b.duration_slots * 0.5) + "hr" + (b.duration_slots > 2 ? "s" : ""), date: b.date, start_time: b.start_time, bay: b.bay, duration_slots: b.duration_slots, credits_used: b.credits_used || 0, amount: b.amount || 0, square_payment_id: b.square_payment_id || null, square_customer_id: b.square_customer_id || null, coach_name: b.coach_name || "" }))); }
+                trackMeta("Purchase", { content_name: "Lesson Booking", content_category: "Lesson", value: lp.total, currency: "USD" });
+                trackGA("purchase", { transaction_id: Date.now().toString(), value: lp.total, currency: "USD", item_category: "lesson" });
                 fire("Lesson booked!"); resetLes(); setTab("home");
               };
               if (needsCard) return (
@@ -1637,6 +1649,8 @@ export default function BirdieGolfWebsite() {
                 total: "$" + selPkg.price + ".00",
                 expiry: fmtShort(expDate),
               });
+              trackMeta("Purchase", { content_name: selPkg.name, content_category: "Lesson Package", value: selPkg.price, currency: "USD" });
+              trackGA("purchase", { transaction_id: Date.now().toString(), value: selPkg.price, currency: "USD", item_category: "lesson_package", item_name: selPkg.name });
               fire("Package purchased!"); setSelPkg(null); setPkgCoach(null);
               setPkgProcessing(false);
             };
@@ -1840,6 +1854,8 @@ export default function BirdieGolfWebsite() {
                   setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
                   loadUserData(customerId);
                   sendEmail("membership", { customer_email: profEmail || onbE, customer_name: (onbF + " " + onbL).trim(), plan: t?.n + " Plan", price: "$" + t?.price + "/mo", renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), enrollment_fee: ef > 0 ? "$" + ef + " (one-time)" : null });
+                  trackMeta("Subscribe", { content_name: t?.n + " Membership", value: total, currency: "USD", predicted_ltv: t?.price * 12 });
+                  trackGA("purchase", { transaction_id: Date.now().toString(), value: total, currency: "USD", item_category: "membership", item_name: t?.n });
                   fire("Welcome to " + t?.n + "!"); setMemModal(null); setMemTab("current"); setMemProcessing(false);
                 }}
               />
