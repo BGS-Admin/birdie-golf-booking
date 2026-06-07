@@ -2185,7 +2185,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
   const sendCancelEmail = async (refundDesc) => {
     const customerEmail = profEmail || onbE;
     const customerName = (onbF + " " + onbL).trim();
-    sendEmail("cancellation", {
+    const payload = {
       customer_email: customerEmail,
       customer_name: customerName,
       booking_type: isLesson ? "Lesson" : "Bay Booking",
@@ -2193,7 +2193,11 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
       date: bk.date,
       time: bk.start_time,
       refund_info: refundDesc,
-    });
+    };
+    // Email to customer
+    sendEmail("cancellation", payload);
+    // Notification to staff
+    sendEmail("cancellation", { ...payload, customer_email: "info@birdiegolfstudios.com", customer_name: "Staff" });
   };
 
   /* ── Cancel booking ── */
