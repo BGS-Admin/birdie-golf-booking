@@ -773,6 +773,9 @@ export default function BirdieGolfWebsite() {
           <span style={LS.footerText}>45 NE 26th St, Unit C, Miami, FL 33145</span>
           <span style={LS.footerText}>Mon–Fri 8am–10pm · Sat–Sun 9am–9pm</span>
         </div>
+        <p style={{ fontSize: 10, color: "#bbb", textAlign: "center", lineHeight: 1.6, margin: "8px 0 0", padding: "0 8px" }}>
+          By signing up you consent to receive SMS messages from Birdie Golf Studios about your bookings and use of our space. Message &amp; data rates may apply. Message frequency varies. Reply STOP to opt out.
+        </p>
       </>
     );
 
