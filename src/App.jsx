@@ -1954,7 +1954,7 @@ export default function BirdieGolfWebsite() {
             <button style={S.b2} onClick={() => setMemModal(null)}>Keep Plan</button>
             <button style={{ ...S.b1, flex: 2, background: "#E03928" }} onClick={async () => {
               await sb.post("membership_history", { customer_id: customerId, action: "cancel", tier, amount: 0, date: dateKey(new Date()) });
-              await sb.post("transactions", { customer_id: customerId, description: "Membership Cancellation Scheduled — " + (td?.n || "") + " Plan", date: dateKey(new Date()), amount: 0, payment_label: "System" });
+              await sb.post("transactions", { customer_id: customerId, description: `Membership Cancellation Scheduled — ${td?.n || ""} Plan — Access until ${renewDate} — No further charges · Cancelled by customer`, date: dateKey(new Date()), amount: 0, payment_label: "System" });
               sendEmail("cancellation_membership", {
                 customer_email: profEmail || onbE,
                 customer_name: (onbF + " " + onbL).trim(),
@@ -2223,7 +2223,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
       }
       await sb.post("transactions", {
         customer_id: customerId,
-        description: `Late Cancellation Fee · Lesson`,
+        description: `Cancellation · Lesson · ${bk.date} · ${bk.start_time || ""} — Late fee charged (within 24h window) · Cancelled by customer`,
         date: new Date().toISOString().split("T")[0],
         amount: lateFee,
         payment_label: "Card",
@@ -2243,7 +2243,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
         setBayCredits(newCredits);
         await sb.post("transactions", {
           customer_id: customerId,
-          description: `Refund (credits) · ${isLesson ? "Lesson" : "Bay " + bk.bay}`,
+          description: `Cancellation · ${isLesson ? "Lesson" : "Bay " + bk.bay} · ${bk.date} · ${bk.start_time || ""} — ${creditsUsed} credit${creditsUsed!==1?"s":""} refunded · Cancelled by customer`,
           date: new Date().toISOString().split("T")[0],
           amount: 0,
           payment_label: "Credits",
@@ -2260,7 +2260,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
         });
         await sb.post("transactions", {
           customer_id: customerId,
-          description: `Refund · ${isLesson ? "Lesson" : "Bay " + bk.bay}`,
+          description: `Cancellation · ${isLesson ? "Lesson" : "Bay " + bk.bay} · ${bk.date} · ${bk.start_time || ""} — $${bk.amount.toFixed(2)} refunded to card · Cancelled by customer`,
           date: new Date().toISOString().split("T")[0],
           amount: -(bk.amount),
           payment_label: "Refund",
@@ -2275,7 +2275,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
         // No payment on file — still log cancellation
         await sb.post("transactions", {
           customer_id: customerId,
-          description: `Cancellation · ${isLesson ? "Lesson" : "Bay " + (bk.bay || bk.label || "")}`,
+          description: `Cancellation · ${isLesson ? "Lesson" : "Bay " + (bk.bay || bk.label || "")} · ${bk.date} · ${bk.start_time || ""} — No refund applicable · Cancelled by customer`,
           date: new Date().toISOString().split("T")[0],
           amount: 0,
           payment_label: "N/A",
@@ -2286,7 +2286,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
       // Bay within 24h: no refund — still log cancellation
       await sb.post("transactions", {
         customer_id: customerId,
-        description: `Cancellation (no refund) · ${isLesson ? "Lesson" : "Bay " + (bk.bay || bk.label || "")}`,
+        description: `Cancellation · ${isLesson ? "Lesson" : "Bay " + (bk.bay || bk.label || "")} · ${bk.date} · ${bk.start_time || ""} — No refund (within 24h window) · Cancelled by customer`,
         date: new Date().toISOString().split("T")[0],
         amount: 0,
         payment_label: "N/A",
