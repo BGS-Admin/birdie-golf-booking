@@ -2199,6 +2199,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
   /* ── Cancel booking ── */
   const cancelBooking = async () => {
     setSaving(true);
+    try {
 
     // 1. Mark booking cancelled — this immediately frees the bay
     await sb.patch("bookings", `id=eq.${bk.id}`, {
@@ -2297,9 +2298,14 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
     // Send cancellation confirmation email
     await sendCancelEmail(refundDesc);
 
-    setSaving(false);
-    onClose();
-    onRefresh();
+    } catch(e) {
+      console.error("Cancel error:", e);
+      fire("Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
+      onClose();
+      onRefresh();
+    }
   };
 
   const GREEN="#072814", RED="#E03928", ORANGE="#072814", PURPLE="#00305B";
