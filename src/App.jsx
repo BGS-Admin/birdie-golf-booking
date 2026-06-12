@@ -103,7 +103,7 @@ const X = {
   grid: z => <Ic z={z} d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" />,
   cal: z => <Ic z={z} d="M3 4h18a2 2 0 012 2v14a2 2 0 01-2 2H3a2 2 0 01-2-2V6a2 2 0 012-2zM16 2v4M8 2v4M3 10h18" />,
   user: z => <Ic z={z} d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 3a4 4 0 100 8 4 4 0 000-8z" />,
-  crown: z => <svg width={z} height={z} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20h20M4 20l2-14 4 6 2-8 2 8 4-6 2 14" /></svg>,
+  crown: z => <svg width={z} height={z} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>,
   chk: z => <Ic z={z} d="M20 6L9 17l-5-5" />,
   card: z => <Ic z={z} d="M1 4h22a2 2 0 012 2v12a2 2 0 01-2 2H1a2 2 0 01-2-2V6a2 2 0 012-2zM1 10h22" />,
   x: z => <Ic z={z} d="M18 6L6 18M6 6l12 12" />,
@@ -122,7 +122,7 @@ const X = {
 /* ─── Business Constants ─── */
 const TIERS = {
   starter:      { n: "Starter",      c: "#C7BCA8", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate", "Club storage", "Members-only invites"] },
-  early_birdie: { n: "Early Birdie", c: "#2D6A4F", badge: "EBD", price: 150, hrs: 0, enrollmentFee: 50, perks: ["Up to 2 non-peak hours per day", "20% off additional non-peak hours beyond 2 hrs", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
+  early_birdie: { n: "Early Birdie", c: "#2D6A4F", badge: "EBD", price: 175, hrs: 0, enrollmentFee: 50, perks: ["Up to 2 non-peak hours per day", "20% off additional non-peak hours beyond 2 hrs", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
   player:       { n: "Player",       c: "#072814", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hours / month", "20% off additional hours", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
   champion:     { n: "Champion",     c: "#000000", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited hours", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
 };
@@ -133,7 +133,7 @@ const ALL_WE_SLOTS = ["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:3
 const FULL_AV = { Mon: ALL_WD_SLOTS, Tue: ALL_WD_SLOTS, Wed: ALL_WD_SLOTS, Thu: ALL_WD_SLOTS, Fri: ALL_WD_SLOTS, Sat: ALL_WE_SLOTS, Sun: ALL_WE_SLOTS };
 
 const COACHES = [
-  { id: "TMiznwW3c_E9-NTW", n: "Santiago Espinoza", ini: "SE", av: { ...FULL_AV } },
+  { id: "TMiznwW3c_E9-NTW", n: "Santiago Espinosa", ini: "SE", av: { ...FULL_AV } },
   { id: "TMa5N23NEiU89Spy", n: "Nicolas Cavero", ini: "NC", av: { ...FULL_AV } },
 ];
 
@@ -470,6 +470,7 @@ export default function BirdieGolfWebsite() {
   const [renewDate, setRenewDate] = useState(null);
   const [memberSince, setMemberSince] = useState(null);
   const [pendingTier, setPendingTier] = useState(null);
+  const [ebPlan, setEbPlan] = useState("monthly"); // "monthly" | "6mo" | "12mo"
 
   /* Bay booking */
   const [bkStep, setBkStep] = useState(0);
@@ -627,18 +628,20 @@ export default function BirdieGolfWebsite() {
           reportError("Payment declined", `Bay booking · Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.date}`, chargeRes?.error, chargeRes);
           return;
         }
-      } else if (bookingData.credits > 0) {
-        // $0 credit booking — create $0 order in Square for member credit utilization tracking
-        const orderRes = await square("order.create", {
+      } else if (bookingData.credits > 0 || bookingData.total === 0) {
+        // $0 booking — use bay.charge with track_only:true so Square uses the catalog item
+        // (same as a paid booking but skips the payment step since amount is $0)
+        const creditNote = bookingData.credits > 0 ? " · Member Credit" : "";
+        const orderRes = await square("bay.charge", {
           square_customer_id: sqCustId,
-          apply_tax: false,
-          line_items: [{
-            name: `Bay ${bookingData.bay} · Member Credit · ${bookingData.credits}hr`,
-            quantity: "1",
-            base_price_money: { amount: 0, currency: "USD" },
-          }],
+          card_id: null,
+          slots: bookingData.durSlots,
+          is_peak: bookingData.isPeak === true,
+          tier: tier || "public",
+          note: `Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.durSlots * 0.5}hr${creditNote}`,
+          track_only: true,
         });
-        sqPaymentId = orderRes?.order?.id; // store order ID as reference
+        sqPaymentId = orderRes?.order?.id;
       }
     }
     // 2. Save booking to Supabase
@@ -1039,7 +1042,9 @@ export default function BirdieGolfWebsite() {
       {upcomingBk.length === 0 ? (
         <div style={S.emptyCard}>
           <p style={{ fontSize: 13, color: "#aaa", marginBottom: 12 }}>No upcoming reservations</p>
-          <button style={{ ...S.b2, padding: "10px 24px" }} onClick={() => { resetBk(); setTab("book"); }}>Book a Bay</button>
+          <button style={{ ...S.b1, padding: "12px 28px", fontSize: 14, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 8, boxShadow: "0 4px 16px rgba(7,40,20,0.18)" }} onClick={() => { resetBk(); setTab("book"); }}>
+            {X.cal(17)} Book a Bay
+          </button>
         </div>
       ) : upcomingBk.map((b, i) => (
         <div key={i} style={S.upCard}>
@@ -1633,15 +1638,18 @@ export default function BirdieGolfWebsite() {
             {(() => { const isMem = tier && tier !== "none";
               const pkgs = [{ name: "3-Hour Package", credits: 3, price: isMem ? 300 : 360, memberPrice: 300, months: 2 }, { name: "5-Hour Package", credits: 5, price: isMem ? 400 : 500, memberPrice: 400, months: 3 }];
               return pkgs.map(p => <div key={p.name} style={{ ...S.pkgCard, marginBottom: 12 }}>
-                <button style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", width: "100%", padding: 0, fontFamily: ff }} onClick={() => setSelPkg(p)}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div><p style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{p.name}</p><p style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{p.credits} lesson credits</p></div>
-                    <p style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>${p.price}</p>
-                  </div>
-                </button>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div><p style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{p.name}</p><p style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{p.credits} lesson credits</p></div>
+                  <button style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: ff }} onClick={() => setSelPkg(p)}>
+                    <p style={{ fontSize: 18, fontWeight: 700, margin: 0, color: isMem ? "#072814" : "#888", textDecoration: isMem ? "none" : "none" }}>${p.price}</p>
+                  </button>
+                </div>
                 {!isMem && <div style={{ marginTop: 12, paddingTop: 12, borderTop: "0.5px solid #f0ede8", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                   <p style={{ fontSize: 12, color: "#888", margin: 0 }}>Members pay <strong style={{ color: "#072814" }}>${p.memberPrice}</strong></p>
-                  <button style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "#072814", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: ff, flexShrink: 0 }} onClick={() => { setTab("membership"); setMemTab("memberships"); }}>Join now →</button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button style={{ fontSize: 12, fontWeight: 600, color: "#072814", background: "none", border: "1px solid rgba(7,40,20,0.25)", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: ff, flexShrink: 0 }} onClick={() => setSelPkg(p)}>Buy ${p.price} →</button>
+                    <button style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "#072814", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: ff, flexShrink: 0 }} onClick={() => { setTab("membership"); setMemTab("memberships"); }}>Join now →</button>
+                  </div>
                 </div>}
               </div>); })()}
           </> : !pkgCoach ? <>
@@ -1816,19 +1824,85 @@ export default function BirdieGolfWebsite() {
 
       {memModal?.type === "join" && (() => {
         const t = TIERS[memModal.to];
+        const isEB = memModal.to === "early_birdie";
         const ef = enrollmentFeeEnabled ? (t?.enrollmentFee || 0) : 0;
-        const subtotal = (t?.price || 0) + ef;
+
+        // Early Birdie prepay options (post-June 15 pricing)
+        const EB_PLANS = {
+          monthly: { label: "Monthly", months: 1, ratePerMonth: 175, totalBase: 175, desc: "$175/mo" },
+          "6mo":   { label: "6-Month Prepay", months: 6, ratePerMonth: 160, totalBase: 960, desc: "$960 total · $160/mo" },
+          "12mo":  { label: "12-Month Prepay", months: 12, ratePerMonth: 150, totalBase: 1800, desc: "$1,800 total · $150/mo" },
+        };
+        const ebOption = isEB ? EB_PLANS[ebPlan] : null;
+
+        // Compute the first-charge amount
+        const firstCharge = isEB ? (ebOption?.totalBase || 175) : (t?.price || 0);
+        const subtotal = firstCharge + ef;
         const tax = applyTax(subtotal);
         const total = subtotal + tax;
         const cardLabel = cards?.[0] ? (cards[0].brand + " ..." + cards[0].last4) : "card on file";
         const sqCardId = cards?.[0]?.square_card_id;
+
+        // Renewal date depends on plan
+        const calcRenewalDate = () => {
+          const rd = new Date();
+          rd.setMonth(rd.getMonth() + (ebOption?.months || 1));
+          return rd;
+        };
+
+        const doJoin = async (activeSqCustId, activeCardId, activeCardLabel) => {
+          const chargeRes = await square("membership.charge", {
+            square_customer_id: activeSqCustId,
+            card_id: activeCardId,
+            tier: memModal.to,
+            amount_override: total, // pass exact total for prepay plans
+          });
+          const sqPaymentId = chargeRes?.payment?.id;
+          if (!sqPaymentId) { fire("Payment failed. Please try again."); reportError("Payment declined", `Membership · ${memModal?.to}`, chargeRes?.error, chargeRes); setMemProcessing(false); return; }
+          const freshCust = await sb.get("customers", `id=eq.${customerId}&select=tier`);
+          if (freshCust?.[0]?.tier && freshCust[0].tier !== "none") { fire("You already have an active membership."); setMemModal(null); setMemProcessing(false); return; }
+          const rd = calcRenewalDate();
+          const planLabel = isEB ? (ebOption?.label + " · " + ebOption?.desc) : (t?.n + " Plan");
+          const monthlyRateForDisplay = isEB ? ebOption?.ratePerMonth : t?.price;
+          await sb.patch("customers", "id=eq." + customerId, { tier: memModal.to, bay_credits_remaining: t?.hrs === -1 ? 999 : (t?.hrs || 0), bay_credits_total: t?.hrs === -1 ? 999 : (t?.hrs || 0), member_since: dateKey(new Date()), renewal_date: dateKey(rd) });
+          await sb.post("membership_history", { customer_id: customerId, action: "join", tier: memModal.to, amount: total, date: dateKey(new Date()) });
+          const txnDesc = isEB ? `${t?.n} Membership - ${ebOption?.label}` : `${t?.n} Membership - First Month`;
+          await sb.post("transactions", { customer_id: customerId, description: txnDesc, date: dateKey(new Date()), amount: firstCharge, payment_label: activeCardLabel, square_payment_id: sqPaymentId });
+          if (ef > 0) await sb.post("transactions", { customer_id: customerId, description: t?.n + " Enrollment Fee (one-time)", date: dateKey(new Date()), amount: ef, payment_label: activeCardLabel, square_payment_id: sqPaymentId });
+          await sb.post("transactions", { customer_id: customerId, description: "Tax (7%)", date: dateKey(new Date()), amount: tax, payment_label: activeCardLabel, square_payment_id: sqPaymentId });
+          setTier(memModal.to); setBayCredits(t?.hrs === -1 ? 999 : (t?.hrs || 0));
+          setMemberSince(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+          setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+          loadUserData(customerId);
+          sendEmail("membership", { customer_email: profEmail || onbE, customer_name: (onbF + " " + onbL).trim(), plan: planLabel, price: "$" + monthlyRateForDisplay + "/mo", renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), enrollment_fee: ef > 0 ? "$" + ef + " (one-time)" : null });
+          trackMeta("Subscribe", { content_name: t?.n + " Membership", value: total, currency: "USD", predicted_ltv: t?.price * 12 });
+          trackGA("purchase", { transaction_id: Date.now().toString(), value: total, currency: "USD", item_category: "membership", item_name: t?.n });
+          fire("Welcome to " + t?.n + "!"); setMemModal(null); setMemTab("current"); setMemProcessing(false);
+        };
+
         return <div style={S.ov} onClick={() => setMemModal(null)}><div style={S.mod} onClick={e => e.stopPropagation()}>
           <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{t?.n} Membership</h3>
-          <p style={{ fontSize: 13, color: "#555", marginBottom: 16 }}>Joining the {t?.n} plan. Here is what you will be charged today:</p>
+          <p style={{ fontSize: 13, color: "#555", marginBottom: 14 }}>Joining the {t?.n} plan. Here is what you will be charged today:</p>
+
+          {/* Early Birdie plan selector */}
+          {isEB && <div style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#888", letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Billing Option</p>
+            {Object.entries(EB_PLANS).map(([key, opt]) => (
+              <div key={key} onClick={() => setEbPlan(key)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 10, border: `1.5px solid ${ebPlan === key ? "#2D6A4F" : "#e0ddd6"}`, background: ebPlan === key ? "rgba(45,106,79,0.06)" : "#fff", marginBottom: 8, cursor: "pointer" }}>
+                <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${ebPlan === key ? "#2D6A4F" : "#ccc"}`, background: ebPlan === key ? "#2D6A4F" : "transparent", flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "#072814", margin: 0 }}>{opt.label}</p>
+                  <p style={{ fontSize: 11, color: "#888", margin: 0 }}>{opt.desc}</p>
+                </div>
+                {key !== "monthly" && <span style={{ fontSize: 10, fontWeight: 700, color: "#2D6A4F", background: "rgba(45,106,79,0.1)", borderRadius: 6, padding: "3px 8px" }}>SAVE {key === "6mo" ? "$90" : "$300"}</span>}
+              </div>
+            ))}
+          </div>}
+
           <div style={{ background: "#f7f7f5", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontSize: 13, color: "#555" }}>First Month ({t?.n})</span>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>${t?.price}.00</span>
+              <span style={{ fontSize: 13, color: "#555" }}>{isEB ? ebOption?.label : `First Month (${t?.n})`}</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>${firstCharge.toFixed(2)}</span>
             </div>
             {ef > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ fontSize: 13, color: "#555" }}>One-time Enrollment Fee</span>
@@ -1843,7 +1917,7 @@ export default function BirdieGolfWebsite() {
               <span style={{ fontSize: 14, fontWeight: 700, color: t?.c }}>${total.toFixed(2)}</span>
             </div>
           </div>
-          {memModal.to === "early_birdie" && <div style={{ background: "rgba(7,40,20,0.04)", border: "1px solid #4A8B6E33", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+          {isEB && <div style={{ background: "rgba(7,40,20,0.04)", border: "1px solid #4A8B6E33", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: "#072814", marginBottom: 4 }}>Time Restriction</p>
             <p style={{ fontSize: 12, color: "#555", lineHeight: 1.5 }}>Early Birdie credits apply Mon–Fri 8am–4pm only. Bookings outside that window are charged at the full hourly rate + tax.</p>
           </div>}
@@ -1871,58 +1945,19 @@ export default function BirdieGolfWebsite() {
                   const saved = await sb.post("payment_methods", { customer_id: customerId, brand, last4, exp, square_card_id: res.card.id });
                   const newCard = saved?.[0] ? { id: saved[0].id, brand, last4, exp, square_card_id: res.card.id } : { id: Date.now(), brand, last4, exp, square_card_id: res.card.id };
                   setCards([newCard]);
-                  const newSqCardId = res.card.id;
-                  const newCardLabel = brand + " ..." + last4;
-                  const chargeRes = await square("membership.charge", { square_customer_id: activeSqCustId, card_id: newSqCardId, tier: memModal.to });
-                  const sqPaymentId = chargeRes?.payment?.id;
-                  if (!sqPaymentId) { fire("Payment failed. Please try again."); reportError("Payment declined", `Membership · ${memModal?.to}`, chargeRes?.error, chargeRes); setMemProcessing(false); return; }
-                  const freshCust = await sb.get("customers", `id=eq.${customerId}&select=tier`);
-                  if (freshCust?.[0]?.tier && freshCust[0].tier !== "none") { fire("You already have an active membership."); setMemModal(null); setMemProcessing(false); return; }
-                  const rd = new Date(); rd.setMonth(rd.getMonth() + 1);
-                  await sb.patch("customers", "id=eq." + customerId, { tier: memModal.to, bay_credits_remaining: t?.hrs === -1 ? 999 : (t?.hrs || 0), bay_credits_total: t?.hrs === -1 ? 999 : (t?.hrs || 0), member_since: dateKey(new Date()), renewal_date: dateKey(rd) });
-                  await sb.post("membership_history", { customer_id: customerId, action: "join", tier: memModal.to, amount: total, date: dateKey(new Date()) });
-                  await sb.post("transactions", { customer_id: customerId, description: t?.n + " Membership - First Month", date: dateKey(new Date()), amount: t?.price, payment_label: newCardLabel, square_payment_id: sqPaymentId });
-                  if (ef > 0) await sb.post("transactions", { customer_id: customerId, description: t?.n + " Enrollment Fee (one-time)", date: dateKey(new Date()), amount: ef, payment_label: newCardLabel, square_payment_id: sqPaymentId });
-                  await sb.post("transactions", { customer_id: customerId, description: "Tax (7%)", date: dateKey(new Date()), amount: tax, payment_label: newCardLabel, square_payment_id: sqPaymentId });
-                  setTier(memModal.to); setBayCredits(t?.hrs === -1 ? 999 : (t?.hrs || 0));
-                  setMemberSince(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
-                  setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
-                  loadUserData(customerId);
-                  sendEmail("membership", { customer_email: profEmail || onbE, customer_name: (onbF + " " + onbL).trim(), plan: t?.n + " Plan", price: "$" + t?.price + "/mo", renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), enrollment_fee: ef > 0 ? "$" + ef + " (one-time)" : null });
-                  trackMeta("Subscribe", { content_name: t?.n + " Membership", value: total, currency: "USD", predicted_ltv: t?.price * 12 });
-                  trackGA("purchase", { transaction_id: Date.now().toString(), value: total, currency: "USD", item_category: "membership", item_name: t?.n });
-                  fire("Welcome to " + t?.n + "!"); setMemModal(null); setMemTab("current"); setMemProcessing(false);
+                  await doJoin(activeSqCustId, res.card.id, brand + " ..." + last4);
                 }}
               />
             </div>
           ) : (
             <>
-              <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}. Renews monthly at ${t?.price}/mo + tax.</p>
+              <p style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>Charged to {cardLabel}.{isEB && ebPlan === "monthly" ? ` Renews monthly at $${ebOption?.ratePerMonth}/mo + tax.` : isEB ? " One-time prepay charge." : ` Renews monthly at $${t?.price}/mo + tax.`}</p>
               <div style={{ display: "flex", gap: 10 }}>
                 <button style={S.b2} onClick={() => setMemModal(null)}>Cancel</button>
                 <button style={{ ...S.b1, flex: 2, background: t?.c, opacity: memProcessing ? 0.5 : 1 }} disabled={memProcessing} onClick={async () => {
                   if (memProcessing) return;
                   setMemProcessing(true);
-                  let sqPaymentId = null;
-                  if (total > 0 && sqCustId && sqCardId) {
-                    const chargeRes = await square("membership.charge", { square_customer_id: sqCustId, card_id: sqCardId, tier: memModal.to });
-                    sqPaymentId = chargeRes?.payment?.id;
-                    if (!sqPaymentId) { fire("Payment failed. Please try again."); reportError("Payment declined", `Membership · ${memModal?.to}`, chargeRes?.error, chargeRes); setMemProcessing(false); return; }
-                  }
-                  const freshCust = await sb.get("customers", `id=eq.${customerId}&select=tier`);
-                  if (freshCust?.[0]?.tier && freshCust[0].tier !== "none") { fire("You already have an active membership."); setMemModal(null); setMemProcessing(false); return; }
-                  const rd = new Date(); rd.setMonth(rd.getMonth() + 1);
-                  await sb.patch("customers", "id=eq." + customerId, { tier: memModal.to, bay_credits_remaining: t?.hrs === -1 ? 999 : (t?.hrs || 0), bay_credits_total: t?.hrs === -1 ? 999 : (t?.hrs || 0), member_since: dateKey(new Date()), renewal_date: dateKey(rd) });
-                  await sb.post("membership_history", { customer_id: customerId, action: "join", tier: memModal.to, amount: total, date: dateKey(new Date()) });
-                  await sb.post("transactions", { customer_id: customerId, description: t?.n + " Membership - First Month", date: dateKey(new Date()), amount: t?.price, payment_label: cardLabel, square_payment_id: sqPaymentId });
-                  if (ef > 0) await sb.post("transactions", { customer_id: customerId, description: t?.n + " Enrollment Fee (one-time)", date: dateKey(new Date()), amount: ef, payment_label: cardLabel, square_payment_id: sqPaymentId });
-                  await sb.post("transactions", { customer_id: customerId, description: "Tax (7%)", date: dateKey(new Date()), amount: tax, payment_label: cardLabel, square_payment_id: sqPaymentId });
-                  setTier(memModal.to); setBayCredits(t?.hrs === -1 ? 999 : (t?.hrs || 0));
-                  setMemberSince(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
-                  setRenewDate(rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
-                  loadUserData(customerId);
-                  sendEmail("membership", { customer_email: profEmail || onbE, customer_name: (onbF + " " + onbL).trim(), plan: t?.n + " Plan", price: "$" + t?.price + "/mo", renewal: rd.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), enrollment_fee: ef > 0 ? "$" + ef + " (one-time)" : null });
-                  fire("Welcome to " + t?.n + "!"); setMemModal(null); setMemTab("current"); setMemProcessing(false);
+                  await doJoin(sqCustId, sqCardId, cardLabel);
                 }}>{ memProcessing ? "Processing…" : `Confirm and Pay $${total.toFixed(2)}` }</button>
               </div>
             </>

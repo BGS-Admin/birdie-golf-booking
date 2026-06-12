@@ -68,6 +68,54 @@ const skuToVariationId = async (sku: string): Promise<string | null> => {
   return match?.id || null;
 };
 
+/* ─── Florida sales tax catalog ID lookup (cached per cold start) ─── */
+let _floridaTaxId: string | null = null;
+const getFloridaTaxId = async (): Promise<string | null> => {
+  if (_floridaTaxId) return _floridaTaxId;
+  const res = await squareRequest("/catalog/search", "POST", { object_types: ["TAX"] });
+  const tax = (res?.objects || []).find(
+    (o: any) => o.type === "TAX" && (o.tax_data?.name || "").toLowerCase().includes("florida")
+  );
+  _floridaTaxId = tax?.id || null;
+  return _floridaTaxId;
+};
+
+/* ─── Loyalty helpers ─── */
+let _loyaltyProgramId: string | null = null;
+const getLoyaltyProgramId = async (): Promise<string | null> => {
+  if (_loyaltyProgramId) return _loyaltyProgramId;
+  const res = await squareRequest("/loyalty/programs/main", "GET");
+  _loyaltyProgramId = res?.program?.id || null;
+  return _loyaltyProgramId;
+};
+
+const getOrCreateLoyaltyAccount = async (squareCustomerId: string): Promise<string | null> => {
+  const searchRes = await squareRequest("/loyalty/accounts/search", "POST", {
+    query: { customer_ids: [squareCustomerId] },
+  });
+  const existing = searchRes?.loyalty_accounts?.[0];
+  if (existing) return existing.id;
+  const programId = await getLoyaltyProgramId();
+  if (!programId) return null;
+  const createRes = await squareRequest("/loyalty/accounts", "POST", {
+    idempotency_key: crypto.randomUUID(),
+    loyalty_account: { program_id: programId, customer_id: squareCustomerId },
+  });
+  return createRes?.loyalty_account?.id || null;
+};
+
+const accumulateLoyaltyPoints = async (squareCustomerId: string, orderId: string): Promise<void> => {
+  try {
+    const loyaltyAccountId = await getOrCreateLoyaltyAccount(squareCustomerId);
+    if (!loyaltyAccountId) return;
+    await squareRequest(`/loyalty/accounts/${loyaltyAccountId}/accumulate`, "POST", {
+      idempotency_key: crypto.randomUUID(),
+      accumulate_points: { order_id: orderId },
+      location_id: LOCATION_ID,
+    });
+  } catch (e) { console.error("Loyalty accumulation failed:", e); }
+};
+
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const ADMIN_EMAIL = Deno.env.get("ADMIN_EMAIL") || "";
@@ -282,6 +330,48 @@ function buildEmail(type: string, p: any): { subject: string; html: string } {
       return { subject, html };
     }
 
+    case "app_error":
+      return {
+        subject: `🚨 BGS App Error — ${p.error_type}`,
+        html: emailBase(`
+          ${confirmBadge("App Error Detected", "#E03928")}
+          <p style="margin:0 0 16px;font-size:14px;color:#555;line-height:1.6;">An error occurred in the Birdie Golf Studios booking app.</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+            ${detailRow("Error Type", p.error_type)}
+            ${detailRow("Context", p.context)}
+            ${p.timestamp ? detailRow("Time", p.timestamp) : ""}
+            ${p.error_detail ? detailRow("Detail", p.error_detail) : ""}
+            ${p.square_error ? detailRow("Square Response", p.square_error) : ""}
+          </table>
+          <p style="margin:0 0 8px;font-size:12px;color:#aaa;">This is an automated alert from the BGS booking app.</p>
+        `),
+      };
+
+    case "cancellation_booking": {
+      const subject = `Booking Cancellation — Birdie Golf Studios`;
+      const bkTypeLabel = p.booking_type === "lesson" ? "Lesson" : "Bay";
+      const html = emailBase(`
+        ${greeting(p.customer_name)}
+        ${confirmBadge("Booking Cancelled", "#888")}
+        <p style="margin:0 0 16px;font-size:14px;color:#555;line-height:1.6;">
+          Your ${bkTypeLabel.toLowerCase()} booking has been cancelled.
+        </p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+          ${p.booking_type !== "lesson" ? detailRow("Bay", "Bay " + p.bay) : ""}
+          ${p.coach ? detailRow("Coach", p.coach) : ""}
+          ${detailRow("Date", p.date)}
+          ${detailRow("Time", p.time)}
+          ${detailRow("Duration", p.duration)}
+          ${p.amount > 0 ? detailRow("Amount Paid", "$" + Number(p.amount).toFixed(2)) : ""}
+        </table>
+        <p style="margin:0 0 20px;font-size:13px;color:#888;line-height:1.6;">
+          If you have any questions or would like to rebook, contact us via WhatsApp or email.
+        </p>
+        ${ctaButton("Book Again")}
+      `);
+      return { subject, html };
+    }
+
     case "cancellation_membership": {
       const subject = `Membership Cancellation — Birdie Golf Studios`;
       const html = emailBase(`
@@ -408,6 +498,25 @@ function buildAdminEmail(type: string, p: any, customerHtml: string): { subject:
             ${detailRow("Time", p.time)}
             ${detailRow("Refund", p.refund_info)}
           </table>
+        `),
+      };
+    case "cancellation_booking":
+      return {
+        subject: `Booking Cancellation — Birdie Golf Studios`,
+        html: emailBase(`
+          ${greeting(p.customer_name)}
+          ${confirmBadge("Booking Cancelled", "#888")}
+          <p style="margin:0 0 16px;font-size:14px;color:#555;line-height:1.6;">Your ${p.booking_type === "lesson" ? "lesson" : "bay"} booking has been cancelled.</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+            ${p.booking_type !== "lesson" ? detailRow("Bay", "Bay " + p.bay) : ""}
+            ${p.coach ? detailRow("Coach", p.coach) : ""}
+            ${detailRow("Date", p.date)}
+            ${detailRow("Time", p.time)}
+            ${detailRow("Duration", p.duration)}
+            ${p.amount > 0 ? detailRow("Amount Paid", "$" + Number(p.amount).toFixed(2)) : ""}
+          </table>
+          <p style="margin:0 0 20px;font-size:13px;color:#888;line-height:1.6;">If you have any questions or would like to rebook, contact us via WhatsApp or email.</p>
+          ${ctaButton("Book Again")}
         `),
       };
     case "cancellation_membership":
@@ -841,18 +950,28 @@ serve(async (req) => {
         const baySku = BAY_SKUS[baySkuKey];
         const variationId = await skuToVariationId(baySku);
         if (!variationId) { result = { error: `SKU lookup failed for: ${baySku}` }; break; }
+        const bayTaxId = await getFloridaTaxId();
+        const bayOrderBody: any = {
+          location_id: LOCATION_ID,
+          customer_id: params.square_customer_id,
+          reference_id: "BGS Booking App",
+          source: { name: "BGS Booking App" },
+          line_items: [{ quantity: String(slots), catalog_object_id: variationId, item_type: "ITEM", note: params.note || undefined }],
+        };
+        if (bayTaxId) bayOrderBody.taxes = [{ catalog_object_id: bayTaxId, scope: "ORDER" }];
+        if (params.promo_catalog_id) bayOrderBody.discounts = [{ catalog_object_id: params.promo_catalog_id, scope: "ORDER" }];
         const orderRes = await squareRequest("/orders", "POST", {
           idempotency_key: crypto.randomUUID(),
-          order: {
-            location_id: LOCATION_ID,
-            customer_id: params.square_customer_id,
-            reference_id: "BGS Booking App",
-            line_items: [{ quantity: String(slots), catalog_object_id: variationId, item_type: "ITEM" }],
-          },
+          order: bayOrderBody,
         });
         const orderId = orderRes?.order?.id;
         const totalMoney = orderRes?.order?.total_money;
         if (!orderId) { result = { error: "Order creation failed", detail: orderRes }; break; }
+        // track_only: skip payment (used for $0 credit/EB-free bookings — catalog item already recorded)
+        if (params.track_only === true) {
+          result = { order: orderRes?.order, payment: null };
+          break;
+        }
         const payRes = await squareRequest("/payments", "POST", {
           idempotency_key: crypto.randomUUID(),
           source_id: params.card_id,
@@ -861,10 +980,12 @@ serve(async (req) => {
           location_id: LOCATION_ID,
           order_id: orderId,
           reference_id: "BGS Booking App",
-          note: params.note || `Bay booking`,
           autocomplete: true,
         });
         result = { order: orderRes?.order, payment: payRes?.payment };
+        if (payRes?.payment?.id && params.square_customer_id && orderId) {
+          accumulateLoyaltyPoints(params.square_customer_id, orderId);
+        }
         break;
       }
 
@@ -877,14 +998,18 @@ serve(async (req) => {
         if (!memVariationId) { result = { error: `SKU lookup failed for membership: ${memSku}` }; break; }
         // Single line item — enrollment fee is added automatically by Square modifier on the membership item
         const lineItems: any[] = [{ quantity: "1", catalog_object_id: memVariationId, item_type: "ITEM" }];
+        const memTaxId = await getFloridaTaxId();
+        const memOrderBody: any = {
+          location_id: LOCATION_ID,
+          customer_id: params.square_customer_id,
+          reference_id: "BGS Booking App",
+          source: { name: "BGS Booking App" },
+          line_items: lineItems,
+        };
+        if (memTaxId) memOrderBody.taxes = [{ catalog_object_id: memTaxId, scope: "ORDER" }];
         const orderRes = await squareRequest("/orders", "POST", {
           idempotency_key: crypto.randomUUID(),
-          order: {
-            location_id: LOCATION_ID,
-            customer_id: params.square_customer_id,
-            reference_id: "BGS Booking App",
-            line_items: lineItems,
-          },
+          order: memOrderBody,
         });
         const orderId = orderRes?.order?.id;
         const totalMoney = orderRes?.order?.total_money;
@@ -901,6 +1026,9 @@ serve(async (req) => {
           autocomplete: true,
         });
         result = { order: orderRes?.order, payment: payRes?.payment };
+        if (payRes?.payment?.id && params.square_customer_id && orderId) {
+          accumulateLoyaltyPoints(params.square_customer_id, orderId);
+        }
         break;
       }
 
@@ -916,15 +1044,18 @@ serve(async (req) => {
         if (!lesSku) { result = { error: `Unknown package: ${pkgKey}` }; break; }
         const variationId = await skuToVariationId(lesSku);
         if (!variationId) { result = { error: `SKU lookup failed for lesson: ${lesSku}` }; break; }
+        const lesTaxId = await getFloridaTaxId();
+        const lesOrderBody: any = {
+          location_id: LOCATION_ID,
+          customer_id: params.square_customer_id,
+          reference_id: "BGS Booking App",
+          source: { name: "BGS Booking App" },
+          line_items: [{ quantity: "1", catalog_object_id: variationId, item_type: "ITEM" }],
+        };
+        if (lesTaxId) lesOrderBody.taxes = [{ catalog_object_id: lesTaxId, scope: "ORDER" }];
         const orderRes = await squareRequest("/orders", "POST", {
           idempotency_key: crypto.randomUUID(),
-          order: {
-            location_id: LOCATION_ID,
-            customer_id: params.square_customer_id,
-            reference_id: "BGS Booking App",
-            line_items: [{ quantity: "1", catalog_object_id: variationId, item_type: "ITEM" }],
-            // Taxes applied by Square at catalog level
-          },
+          order: lesOrderBody,
         });
         const orderId = orderRes?.order?.id;
         const totalMoney = orderRes?.order?.total_money;
@@ -941,8 +1072,12 @@ serve(async (req) => {
           autocomplete: true,
         });
         result = { order: orderRes?.order, payment: payRes?.payment };
+        if (payRes?.payment?.id && params.square_customer_id && orderId) {
+          accumulateLoyaltyPoints(params.square_customer_id, orderId);
+        }
         break;
       }
+      case "ping": result = { version: "2026-06-07-v2", ok: true }; break;
       case "payment.create": result = await squareRequest("/payments", "POST", { idempotency_key: crypto.randomUUID(), source_id: params.card_id || params.source_id, amount_money: { amount: Math.round(params.amount * 100), currency: "USD" }, customer_id: params.square_customer_id, location_id: LOCATION_ID, order_id: params.order_id || undefined, reference_id: params.booking_id || undefined, note: params.note || undefined, autocomplete: true }); break;
       case "payment.refund": result = await squareRequest("/refunds", "POST", { idempotency_key: crypto.randomUUID(), payment_id: params.payment_id, amount_money: { amount: Math.round(params.amount * 100), currency: "USD" }, reason: params.reason || "Booking cancellation" }); break;
       case "subscription.create": result = await squareRequest("/subscriptions", "POST", { idempotency_key: crypto.randomUUID(), location_id: LOCATION_ID, customer_id: params.square_customer_id, plan_variation_id: params.plan_id, card_id: params.card_id, start_date: params.start_date || new Date().toISOString().split("T")[0] }); break;
