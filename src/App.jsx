@@ -791,9 +791,9 @@ export default function BirdieGolfWebsite() {
         <div style={{ marginTop: 20, textAlign: "center" }}>
           <p style={{ fontSize: 12, color: "#aaa", lineHeight: 1.7, margin: 0 }}>
             Need help? Contact us via{" "}
-            <a href="https://wa.me/13054221222" target="_blank" rel="noopener noreferrer" style={{ color: "#3AE58D", fontWeight: 600, textDecoration: "none" }}>WhatsApp</a>
+            <a href="https://wa.me/13055421222" target="_blank" rel="noopener noreferrer" style={{ color: "#3AE58D", fontWeight: 600, textDecoration: "none" }}>WhatsApp</a>
             {" "}or call us at{" "}
-            <a href="tel:+13054561449" style={{ color: "#aaa", textDecoration: "none" }}>+1 (305) 456-4149</a>
+            <a href="tel:+13054564149" style={{ color: "#aaa", textDecoration: "none" }}>+1 (305) 456-4149</a>
           </p>
         </div>
         <div style={LS.footer}>
