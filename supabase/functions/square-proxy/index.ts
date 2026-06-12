@@ -20,18 +20,24 @@ const BAY_SKUS: Record<string, string> = {
 
 // Membership SKUs (signup — includes enrollment fee modifier)
 const MEMBERSHIP_SKUS: Record<string, string> = {
-  starter:      "D661411",   // Starter Membership
-  early_birdie: "F204781",   // Early Birdie Membership
-  player:       "3280496",   // Player's Membership
-  champion:     "W475281",   // Champion's Membership
+  starter:                  "D661411",   // Starter Membership
+  early_birdie_founders:    "F204781",   // Early Birdie Founders ($150/mo — admin-assigned only)
+  early_birdie:             "609817P",   // Early Birdie Monthly ($175/mo)
+  early_birdie_6mo:         "K498227",   // Early Birdie 6-Month Prepay ($960)
+  early_birdie_12mo:        "3079057",   // Early Birdie 12-Month Prepay ($1,800)
+  player:                   "3280496",   // Player's Membership
+  champion:                 "W475281",   // Champion's Membership
 };
 
 // Membership renewal SKUs — no enrollment fee attached
 const MEMBERSHIP_RENEWAL_SKUS: Record<string, string> = {
-  starter:      "D661411",   // Starter Membership (same — no enrollment fee)
-  early_birdie: "287209H",   // Early Birdie Membership Renewal
-  player:       "170432G",   // Player's Membership Renewal
-  champion:     "W475281",   // Champion's Membership (same — no enrollment fee)
+  starter:                  "D661411",   // Starter Membership (same — no enrollment fee)
+  early_birdie_founders:    "287209H",   // Early Birdie Founders Renewal ($150/mo)
+  early_birdie:             "D449188",   // Early Birdie Monthly Renewal ($175/mo)
+  early_birdie_6mo:         "621978G",   // Early Birdie 6-Month Renewal ($960 every 6mo)
+  early_birdie_12mo:        "4404805",   // Early Birdie 12-Month Renewal ($1,800 every 12mo)
+  player:                   "170432G",   // Player's Membership Renewal
+  champion:                 "W475281",   // Champion's Membership (same — no enrollment fee)
 };
 
 // Enrollment fee is handled automatically by Square modifier on membership items
@@ -47,12 +53,12 @@ const LESSON_SKUS: Record<string, Record<string, string>> = {
     "5hr_nonmember": "5205473",  // 5-hr non-member package · Nicolas Cavero
   },
   SE: {
-    "1hr_member":    "Y241741",  // 1-hr member lesson · Santiago Espinoza
-    "1hr_nonmember": "P352820",  // 1-hr non-member lesson · Santiago Espinoza
-    "3hr_member":    "279777C",  // 3-hr member package · Santiago Espinoza
-    "3hr_nonmember": "324856H",  // 3-hr non-member package · Santiago Espinoza
-    "5hr_member":    "A232624",  // 5-hr member package · Santiago Espinoza
-    "5hr_nonmember": "R135065",  // 5-hr non-member package · Santiago Espinoza
+    "1hr_member":    "Y241741",  // 1-hr member lesson · Santiago Espinosa
+    "1hr_nonmember": "P352820",  // 1-hr non-member lesson · Santiago Espinosa
+    "3hr_member":    "279777C",  // 3-hr member package · Santiago Espinosa
+    "3hr_nonmember": "324856H",  // 3-hr non-member package · Santiago Espinosa
+    "5hr_member":    "A232624",  // 5-hr member package · Santiago Espinosa
+    "5hr_nonmember": "R135065",  // 5-hr non-member package · Santiago Espinosa
   },
 };
 
@@ -656,17 +662,25 @@ async function sbInsert(table: string, data: any) {
 }
 
 /* ─── Tier config ─── */
-const TIER_CONFIG: Record<string, { price: number; credits: number }> = {
-  starter:      { price: 45,  credits: 0 },
-  early_birdie: { price: 150, credits: 0 },
-  player:       { price: 200, credits: 8 },
-  champion:     { price: 600, credits: 0 },
+const TIER_CONFIG: Record<string, { price: number; credits: number; renewMonths: number }> = {
+  starter:                  { price: 45,   credits: 0, renewMonths: 1  },
+  early_birdie_founders:    { price: 150,  credits: 0, renewMonths: 1  },
+  early_birdie:             { price: 175,  credits: 0, renewMonths: 1  },
+  early_birdie_6mo:         { price: 960,  credits: 0, renewMonths: 6  },
+  early_birdie_12mo:        { price: 1800, credits: 0, renewMonths: 12 },
+  player:                   { price: 200,  credits: 8, renewMonths: 1  },
+  champion:                 { price: 600,  credits: 0, renewMonths: 1  },
 };
 
-/* ─── Add months helper ─── */
+/* ─── Add months helpers ─── */
 function addOneMonth(dateStr: string): string {
   const d = new Date(dateStr);
   d.setMonth(d.getMonth() + 1);
+  return d.toISOString().split("T")[0];
+}
+function addMonths(dateStr: string, n: number): string {
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + n);
   return d.toISOString().split("T")[0];
 }
 
@@ -789,7 +803,7 @@ async function processRenewals(): Promise<{ processed: number; errors: string[] 
 
       if (paymentStatus === "COMPLETED") {
         // Payment succeeded — update membership
-        const newRenewalDate = addOneMonth(renewal_date);
+        const newRenewalDate = addMonths(renewal_date, tierConf.renewMonths);
         await sbUpdate("customers", id, {
           tier: effectiveTier,
           pending_tier: null,
@@ -992,8 +1006,13 @@ serve(async (req) => {
       case "membership.charge": {
         // Charge membership renewal or signup via catalog item (SKU lookup)
         const tier = params.tier as string;
-        const memSku = MEMBERSHIP_SKUS[tier];
-        if (!memSku) { result = { error: `Unknown tier: ${tier}` }; break; }
+        // For Early Birdie, pick SKU based on billing plan (monthly/6mo/12mo)
+        const ebPlan = params.eb_plan as string | undefined;
+        const memSkuKey = (tier === "early_birdie" && ebPlan && ebPlan !== "monthly")
+          ? `early_birdie_${ebPlan}`
+          : tier;
+        const memSku = MEMBERSHIP_SKUS[memSkuKey];
+        if (!memSku) { result = { error: `Unknown tier: ${tier} / plan: ${ebPlan}` }; break; }
         const memVariationId = await skuToVariationId(memSku);
         if (!memVariationId) { result = { error: `SKU lookup failed for membership: ${memSku}` }; break; }
         // Single line item — enrollment fee is added automatically by Square modifier on the membership item

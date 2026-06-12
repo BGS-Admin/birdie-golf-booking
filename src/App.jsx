@@ -123,6 +123,7 @@ const X = {
 const TIERS = {
   starter:      { n: "Starter",      c: "#C7BCA8", badge: "STR", price: 45,  hrs: 0,  disc: 0.20, perks: ["20% off hourly bay rate", "Club storage", "Members-only invites"] },
   early_birdie: { n: "Early Birdie", c: "#2D6A4F", badge: "EBD", price: 175, hrs: 0, enrollmentFee: 50, perks: ["Up to 2 non-peak hours per day", "20% off additional non-peak hours beyond 2 hrs", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
+  early_birdie_founders: { n: "Early Birdie", c: "#2D6A4F", badge: "EBD", price: 150, hrs: 0, enrollmentFee: 0, founders: true, perks: ["Up to 2 non-peak hours per day", "20% off additional non-peak hours beyond 2 hrs", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
   player:       { n: "Player",       c: "#072814", badge: "PLR", price: 200, hrs: 8,  disc: 0.20, enrollmentFee: 75, perks: ["8 hours / month", "20% off additional hours", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
   champion:     { n: "Champion",     c: "#000000", badge: "CHP", price: 600, hrs: -1, disc: 0, maxBk: 2, perks: ["Unlimited hours", "20% off lessons", "15% off food & beverage", "10% off retail", "Club storage", "Members-only invites"] },
 };
@@ -226,7 +227,7 @@ function calcPrice(dt, startSlot, durSlots, tier, bayCredits, cfg, hoursConfig, 
   const hrs = getHours(dt, hoursConfig), si = hrs.indexOf(startSlot), needed = hrs.slice(si, si + durSlots), durHrs = durSlots * 0.5;
   if (tier === "champion") return { total: 0, disc: 0, credits: durHrs, base: 0, tax: 0, subtotal: 0 };
   let base = 0; needed.forEach(s => { base += slotRate(dt, s, cfg) * 0.5; });
-  if (tier === "early_birdie") {
+  if (tier === "early_birdie" || tier === "early_birdie_founders") {
     // Up to 2 hrs/day (4 slots) free Mon-Fri 8am-4pm
     // Additional non-peak slots in that window → 20% discount
     // Outside window (peak or weekend) → full rate
@@ -618,7 +619,7 @@ export default function BirdieGolfWebsite() {
           card_id: cardId,
           slots: bookingData.durSlots,
           is_peak: bookingData.isPeak === true,
-          tier: tier || "public",
+          tier: (tier === "early_birdie_founders" ? "early_birdie" : tier) || "public",
           note: `Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.durSlots * 0.5}hr`,
           promo_catalog_id: bookingData.promoCatalogId || null,
         });
@@ -637,7 +638,7 @@ export default function BirdieGolfWebsite() {
           card_id: null,
           slots: bookingData.durSlots,
           is_peak: bookingData.isPeak === true,
-          tier: tier || "public",
+          tier: (tier === "early_birdie_founders" ? "early_birdie" : tier) || "public",
           note: `Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.durSlots * 0.5}hr${creditNote}`,
           track_only: true,
         });
@@ -1074,7 +1075,7 @@ export default function BirdieGolfWebsite() {
               </div>
               <div style={{ marginTop: "auto", paddingTop: 12 }}>
                 {tier === "player" && <p style={{ fontSize: 11, color: "#3AE58D", fontWeight: 600 }}>{bayCredits} out of 8 bay credits remaining</p>}
-                {tier === "early_birdie" && <p style={{ fontSize: 11, color: "#95D5B2", fontWeight: 600 }}>Up to 2 hrs/day · Mon–Fri 8am–4pm</p>}
+                {(tier === "early_birdie" || tier === "early_birdie_founders") && <p style={{ fontSize: 11, color: "#95D5B2", fontWeight: 600 }}>Up to 2 hrs/day · Mon–Fri 8am–4pm</p>}
                 {tier === "champion" && <p style={{ fontSize: 11, color: "#3AE58D", fontWeight: 600 }}>Unlimited credits</p>}
                 {tier === "starter" && <p style={{ fontSize: 11, color: "#072814", fontWeight: 600 }}>Pay-as-you-go</p>}
               </div>
@@ -1170,7 +1171,7 @@ export default function BirdieGolfWebsite() {
   const renderBook = () => {
     if (bkStep === 1 && bkDate && bkDur && bkTime && bkBay) {
       const { eTier, eCredits, warn } = effectiveTierOn(bkDate);
-      const price = calcPrice(bkDate, bkTime, bkDur, eTier, eCredits, cfg, hoursConfig, eTier === "early_birdie" ? ebSlotsToday : 0);
+      const price = calcPrice(bkDate, bkTime, bkDur, eTier, eCredits, cfg, hoursConfig, (eTier === "early_birdie" || eTier === "early_birdie_founders") ? ebSlotsToday : 0);
       const durHrs = bkDur * 0.5;
 
       // Past-renewal Player warning — show blocking screen unless user has overridden
@@ -1210,7 +1211,7 @@ export default function BirdieGolfWebsite() {
           <div>
             <div style={S.confCard}>
               {[["Date", fmtDateLong(bkDate)], ["Duration", durHrs + " hr" + (durHrs > 1 ? "s" : "")], ["Time", bkTime], ["Bay", "Bay " + bkBay]].map(([l, v]) => <div key={l} style={S.confRow}><span style={S.confL}>{l}</span><span style={S.confV}>{v}</span></div>)}
-              {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{eTier === "early_birdie" ? "Included (EB)" : "Credits Used"}</span><span style={{ ...S.confV, color: "#072814" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
+              {price.credits > 0 && <div style={S.confRow}><span style={S.confL}>{(eTier === "early_birdie" || eTier === "early_birdie_founders") ? "Included (EB)" : "Credits Used"}</span><span style={{ ...S.confV, color: "#072814" }}>{price.credits} hr{price.credits > 1 ? "s" : ""}</span></div>}
               {price.disc > 0 && <div style={S.confRow}><span style={S.confL}>Member Discount</span><span style={{ ...S.confV, color: "#072814" }}>-${price.disc.toFixed(2)}</span></div>}
               {(() => {
                 const promoDisc = promoApplied?.savings || 0;
@@ -1347,7 +1348,7 @@ export default function BirdieGolfWebsite() {
     return <>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>Book a Bay</h2>
       {tier === "champion" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#124A2B" }}>Unlimited · Max 2hrs/booking</span></div>}
-      {tier === "early_birdie" && <div style={{ ...S.creditBanner, borderColor: "rgba(7,40,20,0.2)", background: "rgba(7,40,20,0.03)" }}><span style={{ fontSize: 13, fontWeight: 600, color: "#072814" }}>Unlimited Mon–Fri 8am–4pm · Full rate outside window</span></div>}
+      {(tier === "early_birdie" || tier === "early_birdie_founders") && <div style={{ ...S.creditBanner, borderColor: "rgba(7,40,20,0.2)", background: "rgba(7,40,20,0.03)" }}><span style={{ fontSize: 13, fontWeight: 600, color: "#072814" }}>Unlimited Mon–Fri 8am–4pm · Full rate outside window</span></div>}
       {tier === "player" && <div style={S.creditBanner}><span style={{ fontSize: 13, fontWeight: 600, color: "#072814" }}>{bayCredits > 0 ? bayCredits + " hrs of credits remaining this cycle" : "No bay credits remaining this cycle"}</span></div>}
 
       <><h4 style={S.stepH}>Select Date</h4>
@@ -1358,7 +1359,7 @@ export default function BirdieGolfWebsite() {
           return <button key={dateKey(d)} style={{ ...S.dateBtn, ...(sel ? S.dateSel : {}), ...(isToday && !sel ? { borderColor: "#072814" } : {}) }}
             onClick={async () => {
               setBkDate(d); setBkDur(null); setBkTime(null); setBkBay(null);
-              if (tier === "early_birdie") {
+              if (tier === "early_birdie" || tier === "early_birdie_founders") {
                 const dateStr = d.toISOString().split("T")[0];
                 const todayBks = await sb.get("bookings", `customer_id=eq.${customerId}&date=eq.${dateStr}&status=eq.confirmed&type=eq.bay&select=start_time,duration_slots`);
                 // Count slots already booked in the EB window (Mon-Fri 8am-4pm)
@@ -1419,7 +1420,7 @@ export default function BirdieGolfWebsite() {
 
       {bkDate && bkDur && bkTime && bkBay && (() => {
         const { eTier: pvTier, eCredits: pvCredits, warn: pvWarn } = effectiveTierOn(bkDate);
-        const price = calcPrice(bkDate, bkTime, bkDur, pvTier, pvCredits, cfg, hoursConfig, pvTier === "early_birdie" ? ebSlotsToday : 0);
+        const price = calcPrice(bkDate, bkTime, bkDur, pvTier, pvCredits, cfg, hoursConfig, (pvTier === "early_birdie" || pvTier === "early_birdie_founders") ? ebSlotsToday : 0);
         return <div style={{ ...S.pricePreview, ...(pvWarn === "past_renewal_player" ? { borderColor: "#E8890C44", background: "#FFF5E508" } : {}) }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Total</span>
@@ -1427,7 +1428,7 @@ export default function BirdieGolfWebsite() {
           </div>
           {pvWarn === "past_renewal_player" && <p style={{ fontSize: 11, color: "#E8890C", marginTop: 4, fontWeight: 600 }}>⚠ Full rate — booking past your {renewDate} renewal</p>}
           {price.credits > 0 && <p style={{ fontSize: 11, color: "#072814", marginTop: 4 }}>{price.credits} hr credit{price.credits > 1 ? "s" : ""} applied</p>}
-          {pvTier === "early_birdie" && price.credits > 0 && <p style={{ fontSize: 11, color: "#072814", marginTop: 2 }}>Free window: {price.credits}hr covered</p>}
+          {(pvTier === "early_birdie" || pvTier === "early_birdie_founders") && price.credits > 0 && <p style={{ fontSize: 11, color: "#072814", marginTop: 2 }}>Free window: {price.credits}hr covered</p>}
           {pvWarn === "switch" && pvTier !== tier && <p style={{ fontSize: 11, color: "#E8890C", marginTop: 4 }}>Priced as {TIERS[pvTier]?.n} — new plan from {renewDate}</p>}
           {price.disc > 0 && <p style={{ fontSize: 11, color: "#072814", marginTop: 2 }}>Member discount: -${price.disc.toFixed(2)}</p>}
           {price.tax > 0 && <p style={{ fontSize: 11, color: "#888", marginTop: 2 }}>Includes ${price.tax.toFixed(2)} tax (7%)</p>}
@@ -1774,7 +1775,7 @@ export default function BirdieGolfWebsite() {
             <button style={S.mcManage} onClick={() => setMemTab("memberships")}>Manage →</button>
           </div>
           {tier === "player" && <p style={{ fontSize: 12, color: "#fff", fontWeight: 600, marginTop: 14 }}>{bayCredits} out of 8 bay credits remaining</p>}
-          {tier === "early_birdie" && <p style={{ fontSize: 13, color: "#ffffffcc", marginTop: 14 }}>Up to 2 hrs/day · Mon–Fri 8am–4pm</p>}
+          {(tier === "early_birdie" || tier === "early_birdie_founders") && <p style={{ fontSize: 13, color: "#ffffffcc", marginTop: 14 }}>Up to 2 hrs/day · Mon–Fri 8am–4pm{tier === "early_birdie_founders" ? " · Founders Rate" : ""}</p>}
           {tier === "champion" && <p style={{ fontSize: 13, color: "#ffffffcc", marginTop: 14 }}>Unlimited credits</p>}
           {totL > 0 && <p style={{ fontSize: 11, color: "#ffffffaa", marginTop: 10 }}>{totL} lesson credit{totL > 1 ? "s" : ""} active</p>}
           <p style={{ fontSize: 11, color: "#ffffff88", marginTop: 10 }}>Renews {renewDate}</p>
@@ -1785,7 +1786,7 @@ export default function BirdieGolfWebsite() {
         </div>
         <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <div style={S.detailCard}><h4 style={S.detailH}>Plan Details</h4>
-            {[["Plan", td.n], ["Monthly Rate", "$" + td.price], ["Member Since", memberSince], ["Next Renewal", renewDate], ...(tier === "champion" ? [["Bay Hours", "Unlimited (max 2hr/booking)"]] : tier === "early_birdie" ? [["Bay Hours", "2 non-peak hrs/day · Mon–Fri 8am–4pm"]] : tier === "player" ? [["Bay Hours", bayCredits + " of 8 remaining"]] : [])].map(([l, v]) => <div key={l} style={S.detailRow}><span style={S.detailL}>{l}</span><span style={S.detailV}>{v}</span></div>)}</div>
+            {[["Plan", td.n + (tier === "early_birdie_founders" ? " (Founders)" : "")], ["Monthly Rate", "$" + td.price + (tier === "early_birdie_founders" ? "/mo · Grandfathered" : "/mo")], ["Member Since", memberSince], ["Next Renewal", renewDate], ...(tier === "champion" ? [["Bay Hours", "Unlimited (max 2hr/booking)"]] : (tier === "early_birdie" || tier === "early_birdie_founders") ? [["Bay Hours", "2 non-peak hrs/day · Mon–Fri 8am–4pm"]] : tier === "player" ? [["Bay Hours", bayCredits + " of 8 remaining"]] : [])].map(([l, v]) => <div key={l} style={S.detailRow}><span style={S.detailL}>{l}</span><span style={S.detailV}>{v}</span></div>)}</div>
           <div style={S.detailCard}><h4 style={S.detailH}>Perks</h4>
             {td.perks.map(p => <div key={p} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}><span style={{ color: "#072814" }}>{X.chk(16)}</span><span style={{ fontSize: 13 }}>{p}</span></div>)}</div>
         </div>
@@ -1796,7 +1797,7 @@ export default function BirdieGolfWebsite() {
 
 
       {memTab === "memberships" && <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
-        {Object.entries(TIERS).map(([k, t]) => <div key={k} style={{ ...S.pkgCard, borderLeft: `3px solid ${t.c}`, display: "flex", flexDirection: "column" }}>
+        {Object.entries(TIERS).filter(([k]) => k !== "early_birdie_founders").map(([k, t]) => <div key={k} style={{ ...S.pkgCard, borderLeft: `3px solid ${t.c}`, display: "flex", flexDirection: "column" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <span style={{ background: t.c, color: k === "starter" ? "#072814" : "#fff", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontFamily: ff, letterSpacing: 1 }}>{t.badge}</span>
@@ -1855,7 +1856,7 @@ export default function BirdieGolfWebsite() {
             square_customer_id: activeSqCustId,
             card_id: activeCardId,
             tier: memModal.to,
-            amount_override: total, // pass exact total for prepay plans
+            eb_plan: isEB ? ebPlan : undefined,
           });
           const sqPaymentId = chargeRes?.payment?.id;
           if (!sqPaymentId) { fire("Payment failed. Please try again."); reportError("Payment declined", `Membership · ${memModal?.to}`, chargeRes?.error, chargeRes); setMemProcessing(false); return; }
