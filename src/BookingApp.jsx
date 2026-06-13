@@ -760,6 +760,7 @@ export default function BirdieGolfWebsite() {
     if (calId && result?.[0]?.id) {
       const gcalRes = await gcal("event.create", {
         calendarId: calId,
+        coachId:    bookingData.coachId,
         booking: {
           bookingId:    result[0].id,
           customerName: onbF + " " + onbL,
@@ -779,25 +780,25 @@ export default function BirdieGolfWebsite() {
     const creditsAfter = bookingData.credit && totL > 0 ? Math.max(0, totL - 1) : null;
     const isMemberForEmail = tier && tier !== "none";
     const emailData = {
-      customer_name:    onbF + " " + onbL,
-      customer_email:   profEmail || onbE,
-      coach:            bookingData.coachName,
-      date:             fmtDateLong(bookingData.date),
-      time:             bookingData.time,
-      // Amount due: Package Credit / $120 member / $150 non-member
-      amount_due:       bookingData.credit
-                          ? "Package Credit"
-                          : "$" + (isMemberForEmail ? "120" : "150") + ".00",
-      // Payment status
-      payment_status:   bookingData.credit
-                          ? "Package Credit"
-                          : bookingData.cardLabel
-                            ? "Paid"
-                            : "Pay in Person",
-      // Only shown for package credit bookings
+      customer_name:     onbF + " " + onbL,
+      customer_email:    profEmail || onbE,
+      coach:             bookingData.coachName,
+      date:              fmtDateLong(bookingData.date),
+      time:              bookingData.time,
+      // "Total" field — amount due
+      total:             bookingData.credit
+                           ? "Package Credit"
+                           : "$" + (isMemberForEmail ? "120" : "150") + ".00",
+      // "Payment" field — status
+      payment_method:    bookingData.credit
+                           ? "Package Credit"
+                           : bookingData.cardLabel
+                             ? "Paid"
+                             : "Pay in Person",
+      // Credits remaining line — only for package bookings
       credits_remaining: creditsAfter !== null
-                          ? `Remaining package credits after this lesson: ${creditsAfter}`
-                          : null,
+                           ? `Remaining package credits after this lesson: ${creditsAfter}`
+                           : null,
     };
     sendEmail("lesson_booking", emailData);
     return result;
@@ -2305,7 +2306,7 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
     if (isLesson && bk.google_event_id) {
       const calId = coachCalendarId(bk.coach_id || "TMiznwW3c_E9-NTW");
       if (calId) {
-        await gcal("event.delete", { calendarId: calId, eventId: bk.google_event_id });
+        await gcal("event.delete", { calendarId: calId, eventId: bk.google_event_id, coachId: bk.coach_id || "TMiznwW3c_E9-NTW", booking: { customerName: onbF + " " + onbL, date: bk.date, startTime: bk.start_time, bay: bk.bay, coachName: bk.coach_name || "", bookingId: bk.id } });
       }
     }
 
