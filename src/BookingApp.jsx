@@ -295,6 +295,30 @@ function lessonPrice(tier, hasCredits, creditCoachId, selCoach) {
 }
 
 /* Lesson helpers */
+// Returns true if a coach already has a lesson that overlaps the proposed 1-hour slot.
+// A lesson runs for 1 hour (2 slots). A proposed slot at time T overlaps any existing
+// lesson that starts between T-0.5hr and T+0.5hr (inclusive), because:
+//   - existing lesson at T-0.5 runs T-0.5 → T+0.5, overlapping T → T+1
+//   - existing lesson at T     runs T     → T+1,   overlapping fully
+//   - existing lesson at T+0.5 runs T+0.5 → T+1.5, overlapping T+0.5 → T+1
+function isCoachBooked(coachId, dt, startTime, realBookings) {
+  const dk         = dateKey(dt);
+  const propStart  = toH(startTime);
+  const propEnd    = propStart + 1; // lessons are always 1 hour
+  return (realBookings || []).some(b => {
+    if (b.status === "cancelled" || b.type !== "lesson" || b.date !== dk) return false;
+    // Match by coach_id (UUID) or coach_name fallback for old bookings
+    const coachMatch = b.coach_id === coachId ||
+      (coachId === "TMiznwW3c_E9-NTW" && (b.coach_name || "").includes("Espinosa")) ||
+      (coachId === "TMa5N23NEiU89Spy" && (b.coach_name || "").includes("Cavero"));
+    if (!coachMatch) return false;
+    const bStart = toH(b.start_time);
+    const bEnd   = bStart + (b.duration_slots || 2) * 0.5;
+    // Overlap: proposed window [propStart, propEnd) overlaps existing [bStart, bEnd)
+    return propStart < bEnd && propEnd > bStart;
+  });
+}
+
 function getLessonTimes(dt, coachFilter, bayBlocks, realBookings, hoursConfig) {
   const dn = dayName(dt), hrs = getHours(dt, hoursConfig), times = new Set();
   const now = new Date();
@@ -306,6 +330,8 @@ function getLessonTimes(dt, coachFilter, bayBlocks, realBookings, hoursConfig) {
       const next = avSlots[si + 1];
       if (!next || toH(next) - toH(s) !== 0.5) return;
       if (isToday && toH(s) <= currentH) return;
+      // Check coach isn't already booked for an overlapping lesson
+      if (isCoachBooked(c.id, dt, s, realBookings)) return;
       if ([1,2,3,4,5].some(bay => [s, next].every(sl => !getBk(dt, sl, realBookings).includes(bay) && !isBayBlocked(bay, dt, sl, bayBlocks))) && hrs.includes(s)) times.add(s);
     });
   });
@@ -318,6 +344,8 @@ function getCoachesAt(dt, time, bayBlocks, realBookings) {
     if (si === -1) return false;
     const next = avSlots[si + 1];
     if (!next || toH(next) - toH(time) !== 0.5) return false;
+    // Check coach isn't already booked for an overlapping lesson
+    if (isCoachBooked(c.id, dt, time, realBookings)) return false;
     return [1,2,3,4,5].some(bay => [time, next].every(sl => !getBk(dt, sl, realBookings).includes(bay) && !isBayBlocked(bay, dt, sl, bayBlocks)));
   });
 }
