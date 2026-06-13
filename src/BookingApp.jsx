@@ -775,15 +775,29 @@ export default function BirdieGolfWebsite() {
     }
 
     // Send confirmation emails
+    // Determine remaining credits after this lesson (if package used)
+    const creditsAfter = bookingData.credit && totL > 0 ? Math.max(0, totL - 1) : null;
+    const isMemberForEmail = tier && tier !== "none";
     const emailData = {
-      customer_name: onbF + " " + onbL,
-      customer_email: profEmail || onbE,
-      date: fmtDateLong(bookingData.date),
-      time: bookingData.time,
-      coach: bookingData.coachName,
-      bay: "Bay " + bookingData.bay,
-      total: bookingData.credit ? "1 Lesson Credit" : "$" + bookingData.total.toFixed(2),
-      payment_method: bookingData.credit ? "Lesson Credit" : "Card on file",
+      customer_name:    onbF + " " + onbL,
+      customer_email:   profEmail || onbE,
+      coach:            bookingData.coachName,
+      date:             fmtDateLong(bookingData.date),
+      time:             bookingData.time,
+      // Amount due: Package Credit / $120 member / $150 non-member
+      amount_due:       bookingData.credit
+                          ? "Package Credit"
+                          : "$" + (isMemberForEmail ? "120" : "150") + ".00",
+      // Payment status
+      payment_status:   bookingData.credit
+                          ? "Package Credit"
+                          : bookingData.cardLabel
+                            ? "Paid"
+                            : "Pay in Person",
+      // Only shown for package credit bookings
+      credits_remaining: creditsAfter !== null
+                          ? `Remaining package credits after this lesson: ${creditsAfter}`
+                          : null,
     };
     sendEmail("lesson_booking", emailData);
     return result;
