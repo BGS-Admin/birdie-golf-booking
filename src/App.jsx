@@ -96,6 +96,27 @@ const square = async (action, params = {}) => {
   } catch { return null; }
 };
 
+/* ─── Google Calendar Integration ─── */
+const SANTIAGO_CALENDAR_ID = "santiespinosa.golf@gmail.com";
+const GCAL_FN_URL = `${SUPABASE_URL}/functions/v1/google-calendar`;
+
+const gcal = async (action, params = {}) => {
+  try {
+    const r = await fetch(GCAL_FN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_KEY}`, "x-bgs-key": BGS_API_KEY },
+      body: JSON.stringify({ action, ...params }),
+    });
+    return r.ok ? await r.json() : null;
+  } catch { return null; }
+};
+
+// Returns the calendar ID for a given coach UUID (expand as more coaches are added)
+const coachCalendarId = (coachId) => {
+  if (coachId === "TMiznwW3c_E9-NTW") return SANTIAGO_CALENDAR_ID;
+  return null;
+};
+
 /* ─── Fonts & Icons ─── */
 const ff = "'DM Sans',sans-serif", mono = "'JetBrains Mono',monospace";
 const Ic = ({ d, z = 18 }) => <svg width={z} height={z} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
@@ -734,6 +755,25 @@ export default function BirdieGolfWebsite() {
     // Always update local display
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     setTransactions(p => [{ desc: "Lesson · " + bookingData.coachName + " · " + bookingData.date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), date: today, method: bookingData.credit ? "Credit" : (bookingData.cardLabel || "Card"), amt: "$" + bookingData.total.toFixed(2) }, ...p]);
+    // Google Calendar — create event for coach
+    const calId = coachCalendarId(bookingData.coachId);
+    if (calId && result?.[0]?.id) {
+      const gcalRes = await gcal("event.create", {
+        calendarId: calId,
+        booking: {
+          bookingId:    result[0].id,
+          customerName: onbF + " " + onbL,
+          date:         dateKey(bookingData.date),
+          startTime:    bookingData.time,
+          bay:          bookingData.bay,
+          coachName:    bookingData.coachName,
+        },
+      });
+      if (gcalRes?.eventId) {
+        sb.patch("bookings", `id=eq.${result[0].id}`, { google_event_id: gcalRes.eventId });
+      }
+    }
+
     // Send confirmation emails
     const emailData = {
       customer_name: onbF + " " + onbL,
@@ -2246,6 +2286,14 @@ function ManageBookingModal({ bk, onClose, customerId, tier, bayCredits, setBayC
       status: "cancelled",
       cancelled_at: new Date().toISOString(),
     });
+
+    // Delete Google Calendar event if this was a lesson
+    if (isLesson && bk.google_event_id) {
+      const calId = coachCalendarId(bk.coach_id || "TMiznwW3c_E9-NTW");
+      if (calId) {
+        await gcal("event.delete", { calendarId: calId, eventId: bk.google_event_id });
+      }
+    }
 
     let refundDesc = "No refund (within 24-hour cancellation window).";
 
