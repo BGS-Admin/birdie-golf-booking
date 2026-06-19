@@ -766,22 +766,52 @@ export default function BirdieGolfWebsite() {
   const saveLessonBooking = async (bookingData) => {
     // 1. Square transaction — always create for tracking, even if $0 (credit utilization)
     let sqPaymentId = null;
-    if (sqCustId) {
+    // Resolve a live Square customer ID — sqCustId state can be stale/unset, so
+    // re-fetch/create on the fly rather than silently skipping the charge if missing.
+    let activeSqCustId = sqCustId;
+    if (!activeSqCustId) {
+      const sqR = await square("customer.search", { phone: String(customerId), email: "" });
+      let foundId = sqR?.customers?.[0]?.id;
+      if (!foundId) {
+        const created = await square("customer.create", { first_name: onbF, last_name: onbL, phone: String(customerId), email: profEmail || onbE, supabase_id: customerId });
+        foundId = created?.customer?.id;
+      }
+      if (foundId) {
+        setSqCustId(foundId);
+        activeSqCustId = foundId;
+        await sb.patch("customers", `id=eq.${customerId}`, { square_customer_id: foundId });
+      }
+    }
+    if (!activeSqCustId) {
+      fire("Could not link your account. Please contact us.");
+      reportError("Square customer link failed", `Lesson booking · ${bookingData.coachName} · ${bookingData.time} · ${bookingData.date} · No sqCustId at checkout`, null);
+      return;
+    }
+    {
       if (bookingData.total > 0 && !bookingData.credit) {
         const cardId = cards?.[0]?.square_card_id;
+        if (!cardId) {
+          fire("No payment method on file. Please add a card and try again.");
+          reportError("No card on file at lesson checkout", `Lesson booking · ${bookingData.coachName} · ${bookingData.time} · ${bookingData.date}`, null);
+          return;
+        }
         const chargeRes = await square("lesson.purchase", {
-          square_customer_id: sqCustId,
+          square_customer_id: activeSqCustId,
           card_id: cardId,
           coach_id: bookingData.coachId,
           hours: 1,
           is_member: !!tier && tier !== "none",
         });
         sqPaymentId = chargeRes?.payment?.id;
-        if (chargeRes?.error) { console.error("Lesson charge failed:", chargeRes.error); }
+        if (!sqPaymentId) {
+          fire("Payment failed — please check your card and try again.");
+          reportError("Payment declined", `Lesson booking · ${bookingData.coachName} · ${bookingData.time} · ${bookingData.date}`, chargeRes?.error, chargeRes);
+          return;
+        }
       } else if (bookingData.credit) {
         // $0 credit lesson — create $0 order for tracking
         const orderRes = await square("order.create", {
-          square_customer_id: sqCustId,
+          square_customer_id: activeSqCustId,
           apply_tax: false,
           line_items: [{
             name: `Lesson Credit · ${bookingData.coachName}`,
@@ -2219,7 +2249,11 @@ export default function BirdieGolfWebsite() {
               if (!editModal.val) { fire("Please enter a phone number"); return; }
               setProfPhone(editModal.val);
               await sb.patch("customers", `id=eq.${customerId}`, { phone: editModal.val });
-              if (sqCustId) await square("customer.update", { square_customer_id: sqCustId, phone: editModal.val.replace(/\D/g,"") });
+              if (sqCustId) {
+                await square("customer.update", { square_customer_id: sqCustId, phone: editModal.val.replace(/\D/g,"") });
+              } else {
+                reportError("Square sync skipped", `Phone update not synced to Square — no sqCustId for customer ${customerId}`, null);
+              }
               fire("Phone number updated"); setEditModal(null);
             }}>Save Phone Number</button>
         }
@@ -2233,7 +2267,11 @@ export default function BirdieGolfWebsite() {
           if (entered !== editModal.code) { fire("Incorrect code — please try again"); return; }
           setProfEmail(editModal.val);
           await sb.patch("customers", `id=eq.${customerId}`, { email: editModal.val });
-          if (sqCustId) await square("customer.update", { square_customer_id: sqCustId, email: editModal.val });
+          if (sqCustId) {
+            await square("customer.update", { square_customer_id: sqCustId, email: editModal.val });
+          } else {
+            reportError("Square sync skipped", `Email update not synced to Square — no sqCustId for customer ${customerId}`, null);
+          }
           fire("Email updated"); setEditModal(null);
         }}>Verify & Save</button>
       </>}
