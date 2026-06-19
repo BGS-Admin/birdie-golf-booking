@@ -659,12 +659,34 @@ export default function BirdieGolfWebsite() {
   const saveBayBooking = async (bookingData) => {
     // 1. Square transaction — always create for tracking, even if $0 (credit utilization)
     let sqPaymentId = null;
-    if (sqCustId) {
+    // Resolve a live Square customer ID — sqCustId state can be stale/unset (e.g. not
+    // yet loaded for a brand-new customer), so re-fetch/create on the fly rather than
+    // silently skipping the charge if it's missing.
+    let activeSqCustId = sqCustId;
+    if (!activeSqCustId) {
+      const sqR = await square("customer.search", { phone: String(customerId), email: "" });
+      let foundId = sqR?.customers?.[0]?.id;
+      if (!foundId) {
+        const created = await square("customer.create", { first_name: onbF, last_name: onbL, phone: String(customerId), email: profEmail || onbE, supabase_id: customerId });
+        foundId = created?.customer?.id;
+      }
+      if (foundId) {
+        setSqCustId(foundId);
+        activeSqCustId = foundId;
+        await sb.patch("customers", `id=eq.${customerId}`, { square_customer_id: foundId });
+      }
+    }
+    if (!activeSqCustId) {
+      fire("Could not link your account. Please contact us.");
+      reportError("Square customer link failed", `Bay booking · Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.date} · No sqCustId at checkout`, null);
+      return;
+    }
+    {
       const cardId = cards?.[0]?.square_card_id;
       if (bookingData.total > 0 && cardId) {
         // Paid booking — charge card
         const chargeRes = await square("bay.charge", {
-          square_customer_id: sqCustId,
+          square_customer_id: activeSqCustId,
           card_id: cardId,
           slots: bookingData.durSlots,
           is_peak: bookingData.isPeak === true,
@@ -683,7 +705,7 @@ export default function BirdieGolfWebsite() {
         // (same as a paid booking but skips the payment step since amount is $0)
         const creditNote = bookingData.credits > 0 ? " · Member Credit" : "";
         const orderRes = await square("bay.charge", {
-          square_customer_id: sqCustId,
+          square_customer_id: activeSqCustId,
           card_id: null,
           slots: bookingData.durSlots,
           is_peak: bookingData.isPeak === true,
@@ -692,6 +714,12 @@ export default function BirdieGolfWebsite() {
           track_only: true,
         });
         sqPaymentId = orderRes?.order?.id;
+      } else if (bookingData.total > 0 && !cardId) {
+        // Paid booking but no card on file to charge — fail loudly instead of silently
+        // saving an unpaid booking.
+        fire("No payment method on file. Please add a card and try again.");
+        reportError("No card on file at bay checkout", `Bay booking · Bay ${bookingData.bay} · ${bookingData.time} · ${bookingData.date}`, null);
+        return;
       }
     }
     // 2. Save booking to Supabase
